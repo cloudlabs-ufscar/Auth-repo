@@ -1,0 +1,146 @@
+ipa_user_groups:
+  cloudlabs: cloudlabs
+  incus: incus
+  incus_cirrus: incus-cirrus
+  incus_stratus: incus-stratus
+  openstack: openstack
+  iam: iam
+  monitoring: monitoring
+  docentes: docentes
+
+
+ipa_users:
+  - username: luizot
+    first: Luiz
+    last: Otávio
+    shell: /bin/bash
+    groups:
+      - "{{ ipa_user_groups.cloudlabs }}"
+      - "{{ ipa_user_groups.iam }}"
+    ssh_keys:
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBLU6Mpd1bccgpgkc8BXvu9eljO9sKbADazQfTsa24Gx lumello@lumello-thinkpadt14gen5.saopaul2.csb
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAYJYvgQ6YvLsp/kV3SxDp++UNxd68vbo8+xWxWr8lxC luiz.mello@estudante.ufscar.br
+
+  - username: danilo
+    first: Danilo
+    last: Pinto
+    shell: /bin/bash
+    groups:
+      - "{{ ipa_user_groups.cloudlabs }}"
+      - "{{ ipa_user_groups.openstack }}"
+      - "{{ ipa_user_groups.incus }}"
+    ssh_keys: []
+
+  - username: lucardoso
+    first: Lucas
+    last: de Araujo Cardoso
+    shell: /bin/bash
+    groups:
+      - "{{ ipa_user_groups.cloudlabs }}"
+      - "{{ ipa_user_groups.openstack }}"
+      - "{{ ipa_user_groups.incus }}"
+    ssh_keys: []
+
+  - username: henriqueb
+    first: Henrique
+    last: Brito
+    shell: /bin/bash
+    groups:
+      - "{{ ipa_user_groups.cloudlabs }}"
+      - "{{ ipa_user_groups.openstack }}"
+      - "{{ ipa_user_groups.incus }}"
+    ssh_keys: []
+
+  - username: breno
+    first: Breno
+    last: ""
+    shell: /bin/bash
+    groups:
+      - "{{ ipa_user_groups.cloudlabs }}"
+      - "{{ ipa_user_groups.iam }}"
+    ssh_keys: []
+
+  - username: nicolas
+    first: Nicolas
+    last: ""
+    shell: /bin/bash
+    groups:
+      - "{{ ipa_user_groups.cloudlabs }}"
+      - "{{ ipa_user_groups.iam }}"
+    ssh_keys: []
+
+  - username: helio
+    first: Helio
+    last: Guardia
+    shell: /bin/bash
+    groups:
+      - "{{ ipa_user_groups.cloudlabs }}"
+      - "{{ ipa_user_groups.docentes }}"
+    ssh_keys: []
+
+  - username: pmatias
+    first: Paulo
+    last: Matias
+    shell: /bin/bash
+    groups:
+      - "{{ ipa_user_groups.cloudlabs }}"
+      - "{{ ipa_user_groups.docentes }}"
+    ssh_keys: []
+
+  - username: vinirodrigues
+    first: Vinícius
+    last: Rodrigues
+    shell: /bin/bash
+    groups:
+      - "{{ ipa_user_groups.cloudlabs }}"
+      - "{{ ipa_user_groups.incus }}"
+      - "{{ ipa_user_groups.openstack }}"
+    ssh_keys: []
+
+  - username: zematheus
+    first: José
+    last: Matheus
+    shell: /bin/bash
+    groups:
+      - "{{ ipa_user_groups.cloudlabs }}"
+      - "{{ ipa_user_groups.incus }}"
+      - "{{ ipa_user_groups.openstack }}"
+    ssh_keys: []
+
+  - username: leosiqueira
+    first: Leonardo
+    last: Triiltz
+    shell: /bin/bash
+    groups:
+      - "{{ ipa_user_groups.cloudlabs }}"
+      - "{{ ipa_user_groups.incus }}"
+      - "{{ ipa_user_groups.openstack }}"
+    ssh_keys: []
+
+  - username: oliver
+    first: Oliver
+    last: ""
+    shell: /bin/bash
+    groups:
+      - "{{ ipa_user_groups.cloudlabs }}"
+      - "{{ ipa_user_groups.monitoring }}"
+    ssh_keys: []
+
+  - username: eduardo
+    first: Eduardo
+    last: ""
+    shell: /bin/bash
+    groups:
+      - "{{ ipa_user_groups.cloudlabs }}"
+      - "{{ ipa_user_groups.monitoring }}"
+    ssh_keys: []
+
+  - username: mmiranda
+    first: Murilo
+    last: Miranda
+    shell: /bin/bash
+    groups:
+      - "{{ ipa_user_groups.cloudlabs }}"
+      - "{{ ipa_user_groups.incus }}"
+      - "{{ ipa_user_groups.openstack }}"
+    ssh_keys: []
