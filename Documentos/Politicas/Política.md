@@ -4,8 +4,11 @@ Entidades compreendem todas as identidades digitais administradas pela infraestr
 Todas as entidades deverão ser criadas e mantidas exclusivamente no diretório central.
 
 ### Criação de Usuários
+
 Todos os usuários devem ser escritos em letra minúscula.
+
 #### Usuários Internos
+
 Todos os membros internos do CloudLabs deverão possuir:
 - associação obrigatória ao grupo `cloudlabs`
 - associação ao respectivo subgrupo de pesquisa
@@ -17,12 +20,14 @@ Todos os membros internos do CloudLabs deverão possuir:
 Permissões administrativas serão concedidas por padrão, sendo atribuídas a todos membros do grupo **cloudlabs**.
 
 #### Usuários Externos
+
 Usuários externos deverão possuir:
 - associação ao grupo `externo`
 - chave pública SSH cadastrada
 - acesso restrito aos hosts explicitamente autorizados
 
 ### Criação de Hosts
+
 Todos os hosts deverão possuir:
 - associação ao grupo global `cloudlabs-hosts`
 - associação ao hostgroup correspondente ao serviço exercido
@@ -37,6 +42,7 @@ Todo hostgroup deve sempre acabar com um sufixo `-hosts` e deve ser inteiramente
 - gateway-hosts
 
 ## Virtual Private Network (VPN)
+
 Devido à distribuição da infraestrutura entre ambientes distintos, incluindo recursos hospedados na Magalu Cloud e no cluster Nimbus da Universidade Federal de São Carlos, toda comunicação administrativa e de serviços internos deverá ocorrer obrigatoriamente por meio de uma VPN corporativa baseada em WireGuard.
 
 A VPN constitui a malha privada de interconexão da infraestrutura, sendo responsável por:
