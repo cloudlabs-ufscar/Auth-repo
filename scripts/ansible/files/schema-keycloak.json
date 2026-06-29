@@ -1,0 +1,326 @@
+{
+  "realm": "cloudlabs",
+  "enabled": true,
+  "roles": {
+    "realm": [
+      {
+        "name": "cloudlabs-member",
+        "description": "usuário membro do grupo Cloudlabs",
+        "composite": false
+      },
+      {
+        "name": "external-member",
+        "description": "usuário externo",
+        "composite": false
+      }
+    ],
+    "client": {
+      "incus": [
+        {
+          "name": "acesso-permitido-incus",
+          "description": "Acesso permitido para entrar no Incus",
+          "composite": false
+        }
+      ]
+    }
+  },
+  "groups": [
+    {
+      "name": "iam-project-admin",
+      "path": "/iam-project-admin",
+      "attributes": {},
+      "clientRoles": { "incus": ["acesso-permitido-incus"] },
+      "subGroups": []
+    },
+    {
+      "name": "iam-project-operator",
+      "path": "/iam-project-operator",
+      "attributes": {},
+      "clientRoles": { "incus": ["acesso-permitido-incus"] },
+      "subGroups": []
+    },
+    {
+      "name": "iam-project-user",
+      "path": "/iam-project-user",
+      "attributes": {},
+      "clientRoles": { "incus": ["acesso-permitido-incus"] },
+      "subGroups": []
+    },
+    {
+      "name": "monitoring-project-admin",
+      "path": "/monitoring-project-admin",
+      "attributes": {},
+      "clientRoles": { "incus": ["acesso-permitido-incus"] },
+      "subGroups": []
+    },
+    {
+      "name": "monitoring-project-operator",
+      "path": "/monitoring-project-operator",
+      "attributes": {},
+      "clientRoles": { "incus": ["acesso-permitido-incus"] },
+      "subGroups": []
+    },
+    {
+      "name": "monitoring-project-user",
+      "path": "/monitoring-project-user",
+      "attributes": {},
+      "clientRoles": { "incus": ["acesso-permitido-incus"] },
+      "subGroups": []
+    },
+    {
+      "name": "openstack-project-admin",
+      "path": "/openstack-project-admin",
+      "attributes": {},
+      "clientRoles": { "incus": ["acesso-permitido-incus"] },
+      "subGroups": []
+    },
+    {
+      "name": "openstack-project-operator",
+      "path": "/openstack-project-operator",
+      "attributes": {},
+      "clientRoles": { "incus": ["acesso-permitido-incus"] },
+      "subGroups": []
+    },
+    {
+      "name": "openstack-project-user",
+      "path": "/openstack-project-user",
+      "attributes": {},
+      "clientRoles": { "incus": ["acesso-permitido-incus"] },
+      "subGroups": []
+    },
+    {
+      "name": "security-project-admin",
+      "path": "/security-project-admin",
+      "attributes": {},
+      "clientRoles": { "incus": ["acesso-permitido-incus"] },
+      "subGroups": []
+    },
+    {
+      "name": "security-project-operator",
+      "path": "/security-project-operator",
+      "attributes": {},
+      "clientRoles": { "incus": ["acesso-permitido-incus"] },
+      "subGroups": []
+    },
+    {
+      "name": "security-project-user",
+      "path": "/security-project-user",
+      "attributes": {},
+      "clientRoles": { "incus": ["acesso-permitido-incus"] },
+      "subGroups": []
+    },
+    {
+      "name": "network-project-admin",
+      "path": "/network-project-admin",
+      "attributes": {},
+      "clientRoles": { "incus": ["acesso-permitido-incus"] },
+      "subGroups": []
+    },
+    {
+      "name": "network-project-operator",
+      "path": "/network-project-operator",
+      "attributes": {},
+      "clientRoles": { "incus": ["acesso-permitido-incus"] },
+      "subGroups": []
+    },
+    {
+      "name": "network-project-user",
+      "path": "/network-project-user",
+      "attributes": {},
+      "clientRoles": { "incus": ["acesso-permitido-incus"] },
+      "subGroups": []
+    },
+    {
+      "name": "admin-project-admin",
+      "path": "/admin-project-admin",
+      "attributes": {},
+      "clientRoles": { "incus": ["acesso-permitido-incus"] },
+      "subGroups": []
+    },
+    {
+      "name": "admin-project-operator",
+      "path": "/admin-project-operator",
+      "attributes": {},
+      "clientRoles": { "incus": ["acesso-permitido-incus"] },
+      "subGroups": []
+    },
+    {
+      "name": "admin-project-user",
+      "path": "/admin-project-user",
+      "attributes": {},
+      "clientRoles": { "incus": ["acesso-permitido-incus"] },
+      "subGroups": []
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "incus",
+      "name": "Client Incus Principal",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "bearerOnly": false,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": [
+        "https://stratus.dc.ufscar.br:8443/*",
+        "https://cirrus.dc.ufscar.br:8443/*"
+      ],
+      "authorizationServicesEnabled": true,
+      "authorizationSettings": {
+        "allowRemoteResourceManagement": true,
+        "policyEnforcementMode": "ENFORCING",
+        "policies": [
+          {
+            "name": "Politica-Acesso-Role-Incus",
+            "type": "role",
+            "logic": "POSITIVE",
+            "decisionStrategy": "AFFIRMATIVE",
+            "config": {
+              "roles": "[{\"id\":\"incus/acesso-permitido-incus\",\"required\":true}]"
+            }
+          },
+          {
+            "name": "Permissao-Geral-Incus",
+            "type": "scope",
+            "logic": "POSITIVE",
+            "decisionStrategy": "AFFIRMATIVE",
+            "config": {
+              "applyPolicies": "[\"Politica-Acesso-Role-Incus\"]"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "users": [
+    {
+      "username": "luizot",
+      "enabled": true,
+      "firstName": "Luiz",
+      "lastName": "Mello",
+      "credentials": [{ "type": "password", "value": "Weak.password!", "temporary": false }],
+      "groups": ["/iam-project-admin"]
+    },
+    {
+      "username": "breno",
+      "enabled": true,
+      "firstName": "Breno",
+      "lastName": "Dias",
+      "credentials": [{ "type": "password", "value": "Weak.password!", "temporary": false }],
+      "groups": ["/iam-project-admin"]
+    },
+    {
+      "username": "nicolas",
+      "enabled": true,
+      "firstName": "Nicolas",
+      "lastName": "Apitinho",
+      "credentials": [{ "type": "password", "value": "Weak.password!", "temporary": false }],
+      "groups": ["/iam-project-admin"]
+    },
+    {
+      "username": "henrique",
+      "enabled": true,
+      "firstName": "Henrique",
+      "lastName": "Brito",
+      "credentials": [{ "type": "password", "value": "Weak.password!", "temporary": false }],
+      "groups": ["/admin-project-admin"]
+    },
+    {
+      "username": "zematheus",
+      "enabled": true,
+      "firstName": "José",
+      "lastName": "Matheus",
+      "credentials": [{ "type": "password", "value": "Weak.password!", "temporary": false }],
+      "groups": ["/admin-project-admin"]
+    },
+    {
+      "username": "eduardo",
+      "enabled": true,
+      "firstName": "Eduardo",
+      "lastName": "Filho",
+      "credentials": [{ "type": "password", "value": "Weak.password!", "temporary": false }],
+      "groups": ["/monitoring-project-admin"]
+    },
+    {
+      "username": "oliver",
+      "enabled": true,
+      "firstName": "Oliver",
+      "lastName": "",
+      "credentials": [{ "type": "password", "value": "Weak.password!", "temporary": false }],
+      "groups": ["/monitoring-project-admin"]
+    },
+    {
+      "username": "dudu",
+      "enabled": true,
+      "firstName": "Luiz",
+      "lastName": "Mello",
+      "credentials": [{ "type": "password", "value": "Weak.password!", "temporary": false }],
+      "groups": ["/monitoring-project-admin"]
+    },
+    {
+      "username": "leleo",
+      "enabled": true,
+      "firstName": "Leonardo",
+      "lastName": "Triiltz",
+      "credentials": [{ "type": "password", "value": "Weak.password!", "temporary": false }],
+      "groups": ["/iam-project-admin"]
+    },
+    {
+      "username": "qyo",
+      "enabled": true,
+      "firstName": "Lucas",
+      "lastName": "Cardoso",
+      "credentials": [{ "type": "password", "value": "Weak.password!", "temporary": false }],
+      "groups": ["/openstack-project-admin"]
+    },
+    {
+      "username": "danilosp",
+      "enabled": true,
+      "firstName": "Danilo",
+      "lastName": "Pinto",
+      "credentials": [{ "type": "password", "value": "Weak.password!", "temporary": false }],
+      "groups": ["/openstack-project-admin"]
+    },
+    {
+      "username": "vini.rodriguez",
+      "enabled": true,
+      "firstName": "Vinicius",
+      "lastName": "Rodriguez",
+      "credentials": [{ "type": "password", "value": "Weak.password!", "temporary": false }],
+      "groups": ["/admin-project-admin"]
+    },
+    {
+      "username": "murilo.miranda",
+      "enabled": true,
+      "firstName": "Murilo",
+      "lastName": "Miranda",
+      "credentials": [{ "type": "password", "value": "Weak.password!", "temporary": false }],
+      "groups": ["/iam-project-admin"]
+    },
+    {
+      "username": "nati",
+      "enabled": true,
+      "firstName": "Natalia",
+      "lastName": "",
+      "credentials": [{ "type": "password", "value": "Weak.password!", "temporary": false }],
+      "groups": ["/security-project-admin"]
+    },
+    {
+      "username": "helio",
+      "enabled": true,
+      "firstName": "Helio",
+      "lastName": "Guardia",
+      "credentials": [{ "type": "password", "value": "Weak.password!", "temporary": false }],
+      "groups": ["/admin-project-admin"]
+    },
+    {
+      "username": "matias",
+      "enabled": true,
+      "firstName": "Paulo",
+      "lastName": "Matias",
+      "credentials": [{ "type": "password", "value": "Weak.password!", "temporary": false }],
+      "groups": ["/admin-project-admin"]
+    }
+  ]
+}

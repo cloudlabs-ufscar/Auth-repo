@@ -1,0 +1,29 @@
+{
+  "writes": {
+    "tuple_keys": [
+      { "user": "group:iam-project-admin#member", "relation": "admin", "object": "project:iam-project" },
+      { "user": "group:iam-project-operator#member", "relation": "operator", "object": "project:iam-project" },
+      { "user": "group:iam-project-user#member", "relation": "user", "object": "project:iam-project" },
+
+      { "user": "group:monitoring-project-admin#member", "relation": "admin", "object": "project:monitoring-project" },
+      { "user": "group:monitoring-project-operator#member", "relation": "operator", "object": "project:monitoring-project" },
+      { "user": "group:monitoring-project-user#member", "relation": "user", "object": "project:monitoring-project" },
+
+      { "user": "group:openstack-project-admin#member", "relation": "admin", "object": "project:openstack-project" },
+      { "user": "group:openstack-project-operator#member", "relation": "operator", "object": "project:openstack-project" },
+      { "user": "group:openstack-project-user#member", "relation": "user", "object": "project:openstack-project" },
+
+      { "user": "group:security-project-admin#member", "relation": "admin", "object": "project:security-project" },
+      { "user": "group:security-project-operator#member", "relation": "operator", "object": "project:security-project" },
+      { "user": "group:security-project-user#member", "relation": "user", "object": "project:security-project" },
+
+      { "user": "group:network-project-admin#member", "relation": "admin", "object": "project:network-project" },
+      { "user": "group:network-project-operator#member", "relation": "operator", "object": "project:network-project" },
+      { "user": "group:network-project-user#member", "relation": "user", "object": "project:network-project" },
+
+      { "user": "group:admin-project-admin#member", "relation": "admin", "object": "project:admin-project" },
+      { "user": "group:admin-project-operator#member", "relation": "operator", "object": "project:admin-project" },
+      { "user": "group:admin-project-user#member", "relation": "user", "object": "project:admin-project" }
+    ]
+  }
+}

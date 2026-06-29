@@ -1,0 +1,26 @@
+{
+  "writes": {
+    "tuple_keys": [
+      { "user": "user:luizot", "relation": "member", "object": "group:iam-project-admin" },
+      { "user": "user:breno", "relation": "member", "object": "group:iam-project-admin" },
+      { "user": "user:nicolas", "relation": "member", "object": "group:iam-project-admin" },
+      { "user": "user:leleo", "relation": "member", "object": "group:iam-project-admin" },
+      { "user": "user:murilo.miranda", "relation": "member", "object": "group:iam-project-admin" },
+
+      { "user": "user:henrique", "relation": "member", "object": "group:admin-project-admin" },
+      { "user": "user:zematheus", "relation": "member", "object": "group:admin-project-admin" },
+      { "user": "user:vini.rodriguez", "relation": "member", "object": "group:admin-project-admin" },
+      { "user": "user:helio", "relation": "member", "object": "group:admin-project-admin" },
+      { "user": "user:matias", "relation": "member", "object": "group:admin-project-admin" },
+
+      { "user": "user:eduardo", "relation": "member", "object": "group:monitoring-project-admin" },
+      { "user": "user:oliver", "relation": "member", "object": "group:monitoring-project-admin" },
+      { "user": "user:dudu", "relation": "member", "object": "group:monitoring-project-admin" },
+
+      { "user": "user:qyo", "relation": "member", "object": "group:openstack-project-admin" },
+      { "user": "user:danilosp", "relation": "member", "object": "group:openstack-project-admin" },
+
+      { "user": "user:nati", "relation": "member", "object": "group:security-project-admin" }
+    ]
+  }
+}
