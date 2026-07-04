@@ -1,0 +1,19 @@
+#SPDX-License-Identifier: MIT-0
+---
+# tasks file for deploy
+
+# 1. Instalação dos pacotes
+- name: Packages Installation
+  ansible.builtin.import_tasks: install-packages.yml
+
+# 2. Estruturação dos arquivos na máquina alvo
+- name: Copy files in IAM machine
+  ansible.builtin.import_tasks: copy-archives.yml
+
+# 3. Configuração certificados Let's Encrypt
+- name: TLS Configuration
+  ansible.builtin.import_tasks: configure-tls.yml
+
+# 4. Docker compose up -d
+- name: Docker Compose deploy
+  ansible.builtin.import_tasks: deploy-iam.yml

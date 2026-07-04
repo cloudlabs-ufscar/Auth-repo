@@ -1,0 +1,7 @@
+- name: first deploy
+  hosts:
+    - iam
+  become: yes
+  tasks:
+    - name: iam deploy
+      ansible.builtin.include_role: deploy

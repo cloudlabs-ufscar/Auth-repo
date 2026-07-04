@@ -1,0 +1,11 @@
+---
+# Paths dos arquivos de configuração do deploy
+deploy_dir: /opt/iam
+keycloak_schema_path: "{{ deploy_dir }}/schema-keycloak.json"
+haproxy_cfg_path: "{{ deploy_dir }}/haproxy.cfg"
+docker_compose_path: "{{ deploy_dir }}/docker-compose.yml"
+renew_cert_script_path: "{{ deploy_dir }}/renew-cert.sh"
+
+# Paths dos certificados tls para o haproxy
+haproxy_certs_dir: "/etc/ssl/private/haproxy"
+haproxy_pem_path: "{{ haproxy_certs_dir }}/haproxy.pem"

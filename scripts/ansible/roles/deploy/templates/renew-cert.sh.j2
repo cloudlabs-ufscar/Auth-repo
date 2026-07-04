@@ -1,0 +1,18 @@
+#!/bin/bash
+
+DOMAIN="{{ iam-domain }}"
+HAPROXY_PEM="{{ haproxy_pem_path }}"
+
+# 1. Tenta renovar o certificado (usa a porta 80 do host que deve estar livre)
+/usr/bin/certbot renew --standalone --quiet
+
+# 2. Junta os novos certificados no formato que o HAProxy precisa (Sobrescrevendo com '>')
+cat /etc/letsencrypt/live/$DOMAIN/fullchain.pem \
+    /etc/letsencrypt/live/$DOMAIN/privkey.pem \
+    > $HAPROXY_PEM
+
+# 3. Garante a permissão restrita para o arquivo combinado
+chmod 600 $HAPROXY_PEM
+
+# 4. Reload suave no HAProxy (Envia sinal HUP para reler o certificado sem dar downtime)
+docker kill -s HUP haproxy || docker restart haproxy
