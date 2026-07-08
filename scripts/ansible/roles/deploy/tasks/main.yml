@@ -1,6 +1,7 @@
 #SPDX-License-Identifier: MIT-0
 ---
 # tasks file for deploy
+- include_vars: paths.yml
 
 # 1. Instalação dos pacotes
 - name: Packages Installation

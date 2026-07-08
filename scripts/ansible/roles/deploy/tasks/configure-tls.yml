@@ -21,7 +21,7 @@
       /etc/letsencrypt/live/{{ iam_domain }}/privkey.pem
       > {{ haproxy_pem_path }}
 
-- name: Cron Job certbot renew (Runs twice a day safely)
+- name: Cron Job certbot renew (Runs twice a day)
   ansible.builtin.cron:
     name: "Renew {{ iam_domain }} TLS cert"
     minute: "0"

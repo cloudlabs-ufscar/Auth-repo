@@ -8,13 +8,13 @@
     mode: "0755"
 
 - name: Copy Keycloak Realm Schema
-  ansible.builtin.file:
+  ansible.builtin.copy:
     src: schema-keycloak.json
     dest: "{{ keycloak_schema_path }}"
     mode: "0644"
 
 - name: Copy HAProxy Configuration from template
-  ansible.builtin.file:
+  ansible.builtin.copy:
     src: haproxy.cfg
     dest: "{{ haproxy_cfg_path }}"
     mode: "0644"

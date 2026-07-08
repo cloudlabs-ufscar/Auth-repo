@@ -12,7 +12,7 @@ services:
       - {{ haproxy_certs_dir }}:/usr/local/etc/haproxy/certs:ro
     depends_on:
       keycloak:
-        condition: service_healthy
+        condition: service_started
       openfga:
         condition: service_healthy
 
@@ -102,19 +102,15 @@ services:
       KC_HOSTNAME_STRICT: 'false'
       KC_HTTP_ENABLED: 'true'
       KC_HOSTNAME_STRICT_HTTPS: "false"
-      KC_PROXY: edge
-      KC_HOSTNAME_ADMIN: http://{{ iam-domain }}:9080
+      KC_PROXY_HEADERS: xforwarded
+      KC_HEALTH_ENABLED: "true"
+      KC_HOSTNAME_ADMIN: http://{{ iam_domain }}:9080
       KC_HOSTNAME: keycloak
       KC_HTTP_HOST: 0.0.0.0
       KC_SPI_EVENTS_LISTENER_OPENFGA_EVENTS_PUBLISHER_API_URL: http://openfga:8080
       KC_LOG_LEVEL: INFO,com.twogenidentity.keycloak:debug
     ports:
       - "9080:8080"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 5s
-      timeout: 5s
-      retries: 3
     volumes:
       - {{ keycloak_schema_path }}:/opt/keycloak/data/import/realm.json:ro
     depends_on:

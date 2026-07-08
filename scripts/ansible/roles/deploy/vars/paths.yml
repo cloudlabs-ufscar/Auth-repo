@@ -1,6 +1,6 @@
 ---
 # Paths dos arquivos de configuração do deploy
-deploy_dir: /opt/iam
+deploy_dir: "/opt/iam"
 keycloak_schema_path: "{{ deploy_dir }}/schema-keycloak.json"
 haproxy_cfg_path: "{{ deploy_dir }}/haproxy.cfg"
 docker_compose_path: "{{ deploy_dir }}/docker-compose.yml"
