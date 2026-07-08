@@ -3,7 +3,7 @@
 DOMAIN="{{ iam-domain }}"
 HAPROXY_PEM="{{ haproxy_pem_path }}"
 
-# 1. Tenta renovar o certificado (usa a porta 80 do host que deve estar livre)
+# 1. Renovação do certificado (a porta 80 deve estar livre)
 /usr/bin/certbot renew --standalone --quiet
 
 # 2. Junta os novos certificados no formato que o HAProxy precisa (Sobrescrevendo com '>')

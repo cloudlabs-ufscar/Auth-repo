@@ -16,10 +16,9 @@ services:
       openfga:
         condition: service_healthy
 
-
-  postgres:
+  postgres-keycloak:
     image: postgres:14
-    container_name: postgres
+    container_name: postgres-keycloak
     environment:
       POSTGRES_DB: keycloak
       POSTGRES_USER: keycloak
@@ -28,7 +27,9 @@ services:
       test: [ "CMD-SHELL", "pg_isready -U keycloak" ]
       interval: 5s
       timeout: 5s
-      retries: 5  
+      retries: 5
+    ports:
+      - "5432:5432"
     volumes:
       - postgres_keycloak_data:/var/lib/postgresql/data
 
@@ -45,6 +46,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    ports:
+      - "5433:5432"
     volumes:
       - postgres_openfga_data:/var/lib/postgresql/data
 
@@ -91,7 +94,7 @@ services:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: "password!!!!"
       KC_DB: postgres
-      KC_DB_URL_HOST: postgres
+      KC_DB_URL_HOST: postgres-keycloak
       KC_DB_URL_DATABASE: keycloak
       KC_DB_SCHEMA: public
       KC_DB_USERNAME: keycloak
@@ -115,7 +118,7 @@ services:
     volumes:
       - {{ keycloak_schema_path }}:/opt/keycloak/data/import/realm.json:ro
     depends_on:
-      postgres:
+      postgres-keycloak:
         condition: service_healthy
       openfga:
         condition: service_healthy

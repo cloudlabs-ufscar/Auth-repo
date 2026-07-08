@@ -2,3 +2,4 @@
 ---
 # vars file for deploy
 iam-domain: "cumulus.dc.ufscar.br"
+certbot_email_cloudlabs: "nicolas.bertozzo@estudante.ufscar.br"

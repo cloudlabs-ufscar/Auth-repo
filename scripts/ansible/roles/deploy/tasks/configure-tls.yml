@@ -9,8 +9,7 @@
     cmd: >
       certbot certonly --standalone
       -d {{ iam_domain }}
-      -d www.{{ iam_domain }}
-      --email {{ certbot_email }}
+      --email {{ certbot_email_cloudlabs }}
       --agree-tos
       --non-interactive
   when: not cert_stat.stat.exists
