@@ -1,0 +1,8 @@
+---
+- name: Deploy LB for Incus incus clusters
+  hosts:
+    - lb
+  tasks:
+    - name: Deploy damassa
+      ansible.builtin.include_role:
+        name: deploy

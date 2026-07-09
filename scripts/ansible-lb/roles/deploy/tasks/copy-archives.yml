@@ -1,0 +1,34 @@
+---
+- name: Create deployment directorie
+  ansible.builtin.file:
+    path: "{{ deploy_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Copy HAProxy Configuration from template
+  ansible.builtin.template:
+    src: haproxy.cfg.j2
+    dest: "{{ haproxy_cfg_file_path }}"
+    mode: "0644"
+
+- name: Copy docker-compose.yml from template
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ docker_compose_path }}"
+    mode: "0644"
+
+- name: Copy certbot cron job from template
+  ansible.builtin.template:
+    src: renew-cert.sh.j2
+    dest: "{{ renew_cert_script_path }}"
+    mode: "0744"
+
+- name: Create certificate directorie
+  ansible.builtin.file:
+    path: "{{ haproxy_certs_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0744"

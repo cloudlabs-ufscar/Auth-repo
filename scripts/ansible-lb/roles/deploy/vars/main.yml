@@ -1,0 +1,28 @@
+#SPDX-License-Identifier: MIT-0
+---
+# vars file for deploy
+incus_clusters:
+  - name: "cirrus"
+    domains: "cirrus.dc.ufscar.br"
+    ips:
+      - "192.168.200.5"
+      - "192.168.200.9"
+      - "192.168.200.4"
+    port: "8443"
+
+  - name: "stratus"
+    domains: "stratus.dc.ufscar.br"
+    ips:
+      - "192.168.100.110"
+      - "192.168.100.108"
+      - "192.168.100.109"
+    port: "8443"
+
+deploy_dir: "/opt/lb"
+haproxy_cfg_file_path: "{{ deploy_dir }}/haproxy.cfg"
+docker_compose_path: "{{ deploy_dir }}/docker-compose.yml"
+renew_cert_script_path: "{{ deploy_dir }}/renew_cert.sh"
+
+haproxy_certs_dir: "/etc/ssl/private/haproxy"
+
+certbot_email_cloudlabs: "nicolas.bertozzo@estudante.ufscar.br"

@@ -1,0 +1,44 @@
+global
+    log stdout format raw local0
+    maxconn 4096
+
+defaults
+    log     global
+    mode    http
+    option  httplog
+    option  dontlognull
+    timeout connect 5s
+    timeout client  50s
+    timeout server  50s
+
+{% for cluster in incus_clusters%}
+# ----------------------------------------------------
+# CLUSTER: {{ cluster.name | upper }}
+# ----------------------------------------------------
+frontend lb-{{ cluster.name }}
+    # Escutando na porta padrão HTTPS (443). Mude se preferir outra porta.
+    bind *:{{ 8443 + loop.index0 }} ssl crt /usr/local/etc/haproxy/certs/haproxy-{{ cluster.name }}.pem
+    
+    # Repassa o IP real do cliente para os servidores internos saberem quem conectou
+    option forwardfor
+    http-request set-header X-Forwarded-Proto https
+    
+    default_backend lb-{{ cluster.name }}
+
+backend lb-{{ cluster.name }}
+    # Faz o hash baseado no IP de Origem (Layer 4 feeling)
+    balance source
+
+    # Consistent hash
+    hash-type consistent sdbm avalanche
+
+    # Opção para fechar conexões HTTP antigas de forma limpa
+    option http-server-close
+
+    # Suas 3 máquinas alvo recebendo HTTP puro.
+    # Ajuste a porta (coloquei 8080 de exemplo, mude para a porta que suas apps usam)
+    {% for ip in cluster.ips %}
+    server inc{{ loop.index }} {{ ip }}:{{ port }} check inter 3s fall 3 rise 2
+    {% endfor %}
+
+{% endfor %}

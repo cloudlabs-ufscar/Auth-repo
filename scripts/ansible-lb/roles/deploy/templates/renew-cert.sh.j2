@@ -1,0 +1,32 @@
+#!/bin/bash
+
+DOMAINS=(
+{% for cluster in incus_clusters %}
+    "{{ cluster.domains }}"
+{% endfor %}
+)
+
+HAPROXY_PEMS=(
+{% for cluster in incus_clusters %}
+    "{{ haproxy_certs_dir }}/haproxy-{{ cluster.name }}.pem"
+{% endfor %}
+)
+
+# Renovação global dos certificados (a porta 80 deve estar livre)
+/usr/bin/certbot renew --standalone --quiet
+
+for i in "${!DOMAINS[@]}"; do
+    DOMAIN="${DOMAINS[$i]}"
+    HAPROXY_PEM="${HAPROXY_PEMS[$i]}"
+
+    # Junta os novos certificados no formato que o HAProxy precisa
+    cat /etc/letsencrypt/live/"$DOMAIN"/fullchain.pem \
+        /etc/letsencrypt/live/"$DOMAIN"/privkey.pem \
+        > "$HAPROXY_PEM"
+
+    # Garante a permissão restrita para o arquivo combinado
+    chmod 644 "$HAPROXY_PEM"
+done
+
+# Reload do HAProxy (Envia sinal HUP para reler todos os novos certificados)
+docker kill -s HUP haproxy || docker restart haproxy

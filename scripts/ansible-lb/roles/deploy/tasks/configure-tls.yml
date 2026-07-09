@@ -1,0 +1,34 @@
+---
+- name: Configure TLS certificates for both incus domains
+  block:
+    - name: Check if SSL Certificate already exists
+      ansible.builtin.stat:
+        path: "/etc/letsencrypt/live/{{ item.domain }}/fullchain.pem"
+      register: cert_stat
+
+    - name: Get the first SSL cert (Only if it doesn't exist)
+      ansible.builtin.command:
+        cmd: >
+          certbot certonly --standalone
+          -d {{ item.domain }}
+          --email {{ certbot_email_cloudlabs }}
+          --agree-tos
+          --non-interactive
+      when: not cert_stat.stat.exists
+
+    # O comando cat é igual ao script de renovação de certificado
+    - name: Generate HAProxy .pem file (Overwrite mode)
+      ansible.builtin.shell:
+        cmd: >
+          cat /etc/letsencrypt/live/{{ item.domain }}/fullchain.pem
+          /etc/letsencrypt/live/{{ item.domain }}/privkey.pem
+          > {{ haproxy_certs_dir }}/haproxy-{{ item.name }}.pem
+
+  loop: "{{ incus_clusters }}"
+
+- name: Cron Job certbot renew (Runs twice a day)
+  ansible.builtin.cron:
+    name: "Renew {{ item.domain }} TLS cert"
+    minute: "0"
+    hour: "0,12"
+    job: "{{ renew_cert_script_path }}"

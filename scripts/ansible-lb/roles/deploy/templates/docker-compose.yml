@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  haproxy:
+    image: haproxy:2.8-alpine
+    container_name: haproxy
+    ports:
+      - "8443:8443"
+      - "8444:8444"
+    volumes:
+      - {{ haproxy_cfg_file_path }}:/usr/local/etc/haproxy/haproxy.cfg:ro
+{% for cluster in incus_clusters %}
+      - {{ haproxy_certs_dir }}/haproxy-{{ cluster.name }}.pem:/usr/local/etc/haproxy/certs:ro
+{% endfor %}
+    depends_on:
+      keycloak:
+        condition: service_started
+      openfga:
+        condition: service_healthy

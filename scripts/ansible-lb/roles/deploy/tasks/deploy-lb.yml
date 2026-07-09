@@ -1,0 +1,6 @@
+---
+- name: Start or Update Docker Compose Stack
+  community.docker.docker_compose_v2:
+    project_src: "{{ deploy_dir }}"
+    state: present
+    pull: always
