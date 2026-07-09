@@ -38,7 +38,7 @@ backend lb-{{ cluster.name }}
     # Suas 3 máquinas alvo recebendo HTTP puro.
     # Ajuste a porta (coloquei 8080 de exemplo, mude para a porta que suas apps usam)
     {% for ip in cluster.ips %}
-    server inc{{ loop.index }} {{ ip }}:{{ port }} check inter 3s fall 3 rise 2
+    server inc{{ loop.index }} {{ ip }}:{{ cluster.port }} check inter 3s fall 3 rise 2
     {% endfor %}
 
 {% endfor %}
