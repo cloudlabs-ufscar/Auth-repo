@@ -12,8 +12,17 @@
 
 # 3. Configuração certificados Let's Encrypt
 - name: TLS Configuration
-  ansible.builtin.import_tasks: configure-tls.yml
+  ansible.builtin.include_tasks: configure-tls.yml
+  loop: "{{ incus_clusters }}"
 
-# 4. Docker compose up -d
+# 4. cron job
+- name: Cron Job certbot renew (Runs twice a day)
+  ansible.builtin.cron:
+    name: "Renew TLS cert"
+    minute: "0"
+    hour: "0,12"
+    job: "{{ renew_cert_script_path }}"
+
+# 5. Docker compose up -d
 - name: Docker Compose deploy
   ansible.builtin.import_tasks: deploy-lb.yml
