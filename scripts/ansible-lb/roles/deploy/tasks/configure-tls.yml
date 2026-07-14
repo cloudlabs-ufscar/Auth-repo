@@ -1,14 +1,14 @@
 ---
 - name: Check if SSL Certificate already exists
   ansible.builtin.stat:
-    path: "/etc/letsencrypt/live/{{ item.domain }}/fullchain.pem"
+    path: "/etc/letsencrypt/live/{{ item.domains }}/fullchain.pem"
   register: cert_stat
 
 - name: Get the first SSL cert (Only if it doesn't exist)
   ansible.builtin.command:
     cmd: >
       certbot certonly --standalone
-      -d {{ item.domain }}
+      -d {{ item.domains }}
       --email {{ certbot_email_cloudlabs }}
       --agree-tos
       --non-interactive
@@ -18,7 +18,7 @@
 - name: Generate HAProxy .pem file (Overwrite mode)
   ansible.builtin.shell:
     cmd: >
-      cat /etc/letsencrypt/live/{{ item.domain }}/fullchain.pem
-      /etc/letsencrypt/live/{{ item.domain }}/privkey.pem
+      cat /etc/letsencrypt/live/{{ item.domains }}/fullchain.pem
+      /etc/letsencrypt/live/{{ item.domains }}/privkey.pem
       > {{ haproxy_certs_dir }}/haproxy-{{ item.name }}.pem
 
