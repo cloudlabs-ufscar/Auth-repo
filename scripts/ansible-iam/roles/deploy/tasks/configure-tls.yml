@@ -20,7 +20,7 @@
       cat /etc/letsencrypt/live/{{ iam_domain }}/fullchain.pem
       /etc/letsencrypt/live/{{ iam_domain }}/privkey.pem
       > {{ haproxy_pem_path }}
-  notify: haproxy-pem-file
+  register: haproxy-pem-file
 
 - name: Adjust permissions
   ansible.builtin.file:
