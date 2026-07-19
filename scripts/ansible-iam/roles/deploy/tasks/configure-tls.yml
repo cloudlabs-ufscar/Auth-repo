@@ -20,7 +20,7 @@
       cat /etc/letsencrypt/live/{{ iam_domain }}/fullchain.pem
       /etc/letsencrypt/live/{{ iam_domain }}/privkey.pem
       > {{ haproxy_pem_path }}
-  register: haproxy-pem-file
+  register: haproxy_pem_file
 
 - name: Adjust permissions
   ansible.builtin.file:
@@ -28,7 +28,7 @@
     owner: root
     group: root
     mode: '755'
-  when: haproxy-pem-file.rc == 0
+  when: haproxy_pem_file.rc == 0
 
 - name: Cron Job certbot renew (Runs twice a day)
   ansible.builtin.cron:
