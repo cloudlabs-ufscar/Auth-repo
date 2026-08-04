@@ -19,6 +19,12 @@
     dest: "{{ haproxy_cfg_path }}"
     mode: "0644"
 
+- name: Copy jar archive for keycloak and openfga plugin event
+  ansible.builtin.copy:
+    src: keycloak-openfga-event-publisher.jar
+    dest: "{{ plugin_keycloak_path }}"
+    mode: "0644"
+
 - name: Copy docker-compose.yml from template
   ansible.builtin.template:
     src: docker-compose.yml.j2

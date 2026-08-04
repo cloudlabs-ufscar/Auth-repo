@@ -5,6 +5,7 @@ keycloak_schema_path: "{{ deploy_dir }}/schema-keycloak.json"
 haproxy_cfg_path: "{{ deploy_dir }}/haproxy.cfg"
 docker_compose_path: "{{ deploy_dir }}/docker-compose.yml"
 renew_cert_script_path: "{{ deploy_dir }}/renew-cert.sh"
+plugin_keycloak_path: "{{ deploy_dir }}/keycloak-openfga-event-publisher.jar"
 
 # Paths dos certificados tls para o haproxy
 haproxy_certs_dir: "/etc/ssl/private/haproxy"
