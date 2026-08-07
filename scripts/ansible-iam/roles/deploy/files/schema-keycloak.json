@@ -82,6 +82,9 @@
         "https://stratus.dc.ufscar.br:8443/*",
         "https://cirrus.dc.ufscar.br:8443/*"
       ],
+      "attributes": {
+	  "oauth2.device.authorization.grant.enabled": "true"
+      },
       "authorizationServicesEnabled": true,
       "authorizationSettings": {
         "allowRemoteResourceManagement": true,
