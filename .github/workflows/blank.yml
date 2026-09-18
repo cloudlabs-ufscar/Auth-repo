@@ -1,6 +1,4 @@
-# This is a basic workflow to help you get started with Actions
-
-name: TEST Remote SSH
+name: Update repo
 
 on:
   push:
@@ -20,4 +18,21 @@ jobs:
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.KEY }}
           port: ${{ secrets.PORT }}
-          script: touch supercooltestfile
+          script: |
+            cd ~/repos/Auth-repo
+
+            EXPECTED_URL="https://github.com/cloudlabs-ufscar/Auth-repo.git"
+            CURRENT_URL=$(git remote get-url origin)
+
+            if [ "$CURRENT_URL" != "$EXPECTED_URL" ]; then
+              # here we check if the repo in the server is pointing to the correct repo before we run scripts from it
+              echo "[!] Remote URL ($CURRENT_URL) does not match expected repository! (Did we change the community/repo name?)"
+              exit 1
+            fi
+
+            git fetch origin main
+            git reset --hard origin/main
+
+            echo "[*] repo updated in the server"
+
+            
