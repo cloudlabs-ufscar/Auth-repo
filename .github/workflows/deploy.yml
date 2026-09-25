@@ -20,6 +20,7 @@ jobs:
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.KEY }}
           port: ${{ secrets.PORT }}
+          command_timeout: 20m
           envs: KEYCLOAK_GITHUB_CLIENT_ID,KEYCLOAK_GITHUB_CLIENT_SECRET
           script: |
             set -e

@@ -56,7 +56,6 @@ services:
 
   migrate:
     image: openfga/openfga:v1.5.5
-    restart: unless-stopped
     container_name: migrate
     environment:
       - OPENFGA_DATASTORE_ENGINE=postgres
