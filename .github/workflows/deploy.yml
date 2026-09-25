@@ -1,0 +1,64 @@
+name: Deploy IAM
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy IAM via Ansible
+    runs-on: ubuntu-latest
+    steps:
+      - name: Connect and Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.5
+        env:
+          KEYCLOAK_GITHUB_CLIENT_ID: ${{ secrets.KEYCLOAK_GITHUB_CLIENT_ID }}
+          KEYCLOAK_GITHUB_CLIENT_SECRET: ${{ secrets.KEYCLOAK_GITHUB_CLIENT_SECRET }}
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.KEY }}
+          port: ${{ secrets.PORT }}
+          envs: KEYCLOAK_GITHUB_CLIENT_ID,KEYCLOAK_GITHUB_CLIENT_SECRET
+          script: |
+            set -e
+
+            echo "[*] Navigating to repository directory..."
+            mkdir -p ~/repos
+            if [ ! -d ~/repos/Auth-repo/.git ]; then
+              echo "[*] Cloning repository for the first time..."
+              git clone https://github.com/cloudlabs-ufscar/Auth-repo.git ~/repos/Auth-repo
+            fi
+
+            cd ~/repos/Auth-repo
+
+            EXPECTED_URL="https://github.com/cloudlabs-ufscar/Auth-repo.git"
+            CURRENT_URL=$(git remote get-url origin)
+
+            if [ "$CURRENT_URL" != "$EXPECTED_URL" ]; then
+              echo "[!] Remote URL ($CURRENT_URL) does not match expected repository!"
+              exit 1
+            fi
+
+            echo "[*] Fetching and resetting to origin/main..."
+            git fetch origin main
+            git reset --hard origin/main
+
+            echo "[*] Repository updated successfully."
+
+            echo "[*] Navigating to Ansible scripts..."
+            cd ~/repos/Auth-repo/scripts/ansible-iam
+
+            EXTRA_VARS=""
+            if [ -n "$KEYCLOAK_GITHUB_CLIENT_ID" ]; then
+              EXTRA_VARS="$EXTRA_VARS -e github_client_id=$KEYCLOAK_GITHUB_CLIENT_ID"
+            fi
+            if [ -n "$KEYCLOAK_GITHUB_CLIENT_SECRET" ]; then
+              EXTRA_VARS="$EXTRA_VARS -e github_client_secret=$KEYCLOAK_GITHUB_CLIENT_SECRET"
+            fi
+
+            echo "[*] Executing Ansible IAM playbook..."
+            ansible-playbook -i inventory/inventory tasks/first-deploy.yml $EXTRA_VARS
+
+            echo "[*] IAM deployment completed successfully!"

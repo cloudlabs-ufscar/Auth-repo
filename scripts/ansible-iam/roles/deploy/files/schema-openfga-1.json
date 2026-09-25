@@ -23,7 +23,8 @@
 
       { "user": "group:admin-project-admin#member", "relation": "admin", "object": "project:admin-project" },
       { "user": "group:admin-project-operator#member", "relation": "operator", "object": "project:admin-project" },
-      { "user": "group:admin-project-user#member", "relation": "user", "object": "project:admin-project" }
+      { "user": "group:admin-project-user#member", "relation": "user", "object": "project:admin-project" },
+      { "user": "group:admin-project-admin#member", "relation": "admin", "object": "server:incus" }
     ]
   }
 }

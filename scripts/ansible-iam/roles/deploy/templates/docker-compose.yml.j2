@@ -75,9 +75,9 @@ services:
       - OPENFGA_DATASTORE_ENGINE=postgres
       - OPENFGA_DATASTORE_URI=postgres://postgres:password@postgres-openfga:5432/postgres?sslmode=disable
       - OPENFGA_DATASTORE_MAX_OPEN_CONNS=100
-      - OPENFGA_AUTHN_METHOD=preshared
-      - OPENFGA_AUTHN_PRESHARED_KEYS=cloudlabsiam
-      healthcheck:
+      #- OPENFGA_AUTHN_METHOD=preshared
+      #- OPENFGA_AUTHN_PRESHARED_KEYS=cloudlabsiam
+    healthcheck:
       test: ["CMD", "/usr/local/bin/grpc_health_probe", "-addr=localhost:8081"]
       interval: 3s
       timeout: 30s
@@ -114,6 +114,8 @@ services:
       KC_PROXY_HEADERS: xforwarded      
       KC_SPI_EVENTS_LISTENER_OPENFGA_EVENTS_PUBLISHER_API_URL: http://openfga:8080
       KC_LOG_LEVEL: INFO,com.twogenidentity.keycloak:debug
+      GITHUB_CLIENT_ID: "{{ github_client_id }}"
+      GITHUB_CLIENT_SECRET: "{{ github_client_secret }}"
     ports:
       - "9080:8080"
     volumes:
