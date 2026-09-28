@@ -1,0 +1,15 @@
+---
+openbao_version: "2.1.0"
+openbao_arch: "amd64"
+openbao_user: "openbao"
+openbao_group: "openbao"
+
+openbao_dir_config: "/etc/openbao"
+openbao_dir_data: "/var/lib/openbao/data"
+
+openbao_listen_address: "0.0.0.0:8200"
+openbao_api_addr: "http://{{ ansible_facts['default_ipv4']['address'] | default(ansible_host) }}:8200"
+openbao_cluster_addr: "http://{{ ansible_facts['default_ipv4']['address'] | default(ansible_host) }}:8201"
+
+openbao_deb_name: "bao_{{ openbao_version }}_linux_{{ openbao_arch }}.deb"
+openbao_download_url: "https://github.com/openbao/openbao/releases/download/v{{ openbao_version }}/{{ openbao_deb_name }}"

@@ -1,0 +1,170 @@
+---
+- name: Install required prerequisite packages
+  ansible.builtin.apt:
+    name:
+      - curl
+      - jq
+      - libcap2-bin
+    state: present
+    cache_valid_time: 3600
+
+- name: Ensure files directory exists on controller
+  ansible.builtin.file:
+    path: "{{ role_path }}/files"
+    state: directory
+    mode: "0755"
+  delegate_to: localhost
+  become: no
+  run_once: yes
+
+- name: Download OpenBao deb package on controller (Nimbus)
+  ansible.builtin.get_url:
+    url: "{{ openbao_download_url }}"
+    dest: "{{ role_path }}/files/{{ openbao_deb_name }}"
+    mode: "0644"
+  delegate_to: localhost
+  become: no
+  run_once: yes
+
+- name: Copy OpenBao deb package to target
+  ansible.builtin.copy:
+    src: "{{ role_path }}/files/{{ openbao_deb_name }}"
+    dest: "/tmp/{{ openbao_deb_name }}"
+    mode: "0644"
+
+- name: Install OpenBao deb package
+  ansible.builtin.apt:
+    deb: "/tmp/{{ openbao_deb_name }}"
+    state: present
+
+- name: Ensure OpenBao data directory exists
+  ansible.builtin.file:
+    path: "{{ openbao_dir_data }}"
+    state: directory
+    owner: "{{ openbao_user }}"
+    group: "{{ openbao_group }}"
+    mode: "0700"
+
+- name: Create vault symlinks pointing to bao
+  ansible.builtin.file:
+    src: /usr/bin/bao
+    dest: "{{ item }}"
+    state: link
+    force: yes
+  loop:
+    - /usr/bin/vault
+    - /usr/local/bin/bao
+    - /usr/local/bin/vault
+
+- name: Deploy OpenBao HCL configuration
+  ansible.builtin.template:
+    src: openbao.hcl.j2
+    dest: "{{ openbao_dir_config }}/openbao.hcl"
+    owner: "{{ openbao_user }}"
+    group: "{{ openbao_group }}"
+    mode: "0640"
+  notify: restart openbao
+
+- name: Set environment variables for shell sessions
+  ansible.builtin.copy:
+    dest: /etc/profile.d/openbao.sh
+    content: |
+      export BAO_ADDR="http://127.0.0.1:8200"
+      export VAULT_ADDR="http://127.0.0.1:8200"
+    mode: "0644"
+
+- name: Flush handlers to start OpenBao before initialization
+  ansible.builtin.meta: flush_handlers
+
+- name: Ensure OpenBao service is started and enabled
+  ansible.builtin.systemd:
+    name: openbao
+    state: started
+    enabled: yes
+    daemon_reload: yes
+
+- name: Wait for OpenBao API port to be available
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: 8200
+    delay: 2
+    timeout: 30
+
+- name: Check OpenBao initialization status
+  ansible.builtin.command: /usr/bin/bao status -format=json
+  register: openbao_status_raw
+  changed_when: false
+  failed_when: false
+  environment:
+    BAO_ADDR: "http://127.0.0.1:8200"
+
+- name: Parse OpenBao status
+  ansible.builtin.set_fact:
+    openbao_initialized: "{{ (openbao_status_raw.stdout | from_json).initialized | default(false) }}"
+  when: openbao_status_raw.stdout | length > 0
+
+- name: Initialize OpenBao operator (1 share, threshold 1)
+  ansible.builtin.command: /usr/bin/bao operator init -key-shares=1 -key-threshold=1 -format=json
+  register: openbao_init_output
+  environment:
+    BAO_ADDR: "http://127.0.0.1:8200"
+  when: not (openbao_initialized | default(false))
+
+- name: Save unseal key securely
+  ansible.builtin.copy:
+    content: "{{ (openbao_init_output.stdout | from_json).unseal_keys_b64[0] }}"
+    dest: "{{ openbao_dir_data }}/unseal.key"
+    owner: root
+    group: root
+    mode: "0400"
+  when: openbao_init_output is changed
+
+- name: Save root token securely
+  ansible.builtin.copy:
+    content: "{{ (openbao_init_output.stdout | from_json).root_token }}"
+    dest: "{{ openbao_dir_data }}/root.token"
+    owner: root
+    group: root
+    mode: "0400"
+  when: openbao_init_output is changed
+
+- name: Deploy auto-unseal script
+  ansible.builtin.template:
+    src: openbao-unseal.sh.j2
+    dest: /usr/local/bin/openbao-unseal.sh
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Deploy auto-unseal systemd service
+  ansible.builtin.template:
+    src: openbao-unseal.service.j2
+    dest: /etc/systemd/system/openbao-unseal.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - reload systemd
+
+- name: Ensure auto-unseal service is enabled and started
+  ansible.builtin.systemd:
+    name: openbao-unseal
+    state: started
+    enabled: yes
+    daemon_reload: yes
+
+- name: Execute auto-unseal to ensure OpenBao is unsealed
+  ansible.builtin.command: /usr/local/bin/openbao-unseal.sh
+  changed_when: false
+
+- name: Verify OpenBao cluster status
+  ansible.builtin.command: /usr/bin/bao status
+  register: openbao_final_status
+  changed_when: false
+  environment:
+    BAO_ADDR: "http://127.0.0.1:8200"
+
+- name: Display OpenBao status
+  ansible.builtin.debug:
+    var: openbao_final_status.stdout_lines
+

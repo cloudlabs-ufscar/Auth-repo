@@ -1,2 +1,5 @@
 [iam]
 200.18.99.87
+
+[vault]
+vault.maas ansible_user=ubuntu

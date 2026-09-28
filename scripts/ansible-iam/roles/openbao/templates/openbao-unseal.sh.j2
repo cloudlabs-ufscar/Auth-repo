@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -u
+
+export BAO_ADDR="http://127.0.0.1:8200"
+UNSEAL_KEY_FILE="{{ openbao_dir_data }}/unseal.key"
+
+if [ ! -f "$UNSEAL_KEY_FILE" ]; then
+  echo "Unseal key file $UNSEAL_KEY_FILE not found. Exiting."
+  exit 0
+fi
+
+for i in $(seq 1 30); do
+  STATUS_OUT=$(/usr/bin/bao status 2>/dev/null || true)
+  if [ -n "$STATUS_OUT" ]; then
+    break
+  fi
+  sleep 1
+done
+
+STATUS=$(/usr/bin/bao status 2>/dev/null || true)
+if echo "$STATUS" | grep -Eq "^Sealed[[:space:]]+true"; then
+  echo "OpenBao is sealed. Unsealing..."
+  UNSEAL_KEY=$(cat "$UNSEAL_KEY_FILE")
+  /usr/bin/bao operator unseal "$UNSEAL_KEY"
+  echo "OpenBao successfully unsealed."
+else
+  echo "OpenBao is already unsealed."
+fi
+
+

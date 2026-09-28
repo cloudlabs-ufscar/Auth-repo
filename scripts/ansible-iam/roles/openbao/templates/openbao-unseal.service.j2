@@ -1,0 +1,13 @@
+[Unit]
+Description=OpenBao Auto-Unseal Service
+Documentation=https://openbao.org/docs/
+After=openbao.service
+Requires=openbao.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/openbao-unseal.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
