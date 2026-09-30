@@ -156,7 +156,7 @@ sequenceDiagram
     <!-- CARD 2: INCUS WEB UI -->
     <div class="card">
       <h2 class="card-title"><span class="badge badge-purple">Web UI Flow</span> Autenticação Incus Web UI (Auth Code com PKCE - RFC 7636)</h2>
-      <p class="card-desc">Projetado para navegadores completos. Utiliza redirecionamento nativo HTTP 302 protegido por PKCE (Proof Key for Code Exchange) para prevenir roubo de código de autorização.</p>
+      <p class="card-desc">Projetado para navegadores completos. Utiliza redirecionamento nativo HTTP 302 protegido por PKCE (Proof Key for Code Exchange) para prevenir interceptação de código de autorização.</p>
       <div class="mermaid">
 sequenceDiagram
     autonumber
@@ -191,10 +191,34 @@ sequenceDiagram
       </div>
     </div>
 
-    <!-- CARD 3: OPENFGA REBAC -->
+    <!-- CARD 3: JWKS DISCOVERY & RETRIEVAL -->
     <div class="card">
-      <h2 class="card-title"><span class="badge badge-green">ReBAC Authorization</span> Validação de Permissão no OpenFGA (Zanzibar Check)</h2>
-      <p class="card-desc">Toda operação solicitada no Incus (criar VM, parar container, listar discos) passa por uma verificação de grafo ReBAC no OpenFGA antes de ser executada.</p>
+      <h2 class="card-title"><span class="badge badge-blue">Backchannel JWKS</span> Obtenção e Cache de Chaves Públicas pelo Incus (Discovery)</h2>
+      <p class="card-desc">O Incus consulta o Keycloak para baixar o conjunto de chaves públicas RSA (JWKS). As chaves ficam em cache na memória do Incus, permitindo validar assinaturas JWT de forma 100% offline e instantânea a cada comando.</p>
+      <div class="mermaid">
+sequenceDiagram
+    autonumber
+    participant INCUS as 🌐 Incus Daemon (Cirrus)
+    participant KC as 🛡️ Keycloak (cumulus:8443)
+
+    Note over INCUS,KC: 1. OIDC Discovery (No startup do Incus ou expiração de cache)
+    INCUS->>KC: GET /realms/cloudlabs/.well-known/openid-configuration
+    KC-->>INCUS: HTTP 200 { "jwks_uri": "https://cumulus.dc.ufscar.br:8443/.../certs" }
+
+    Note over INCUS,KC: 2. Resgate das Chaves Públicas RSA (JWKS)
+    INCUS->>KC: GET /realms/cloudlabs/protocol/openid-connect/certs
+    KC-->>INCUS: HTTP 200 { "keys": [ { "kid": "k1-2026", "kty": "RSA", "alg": "RS256", "n": "...", "e": "AQAB" } ] }
+
+    Note over INCUS: 3. Cache em Memória e Validação Offline do Token
+    INCUS->>INCUS: Armazena chaves públicas em cache
+    Note over INCUS: Ao receber requisições do usuário:<br/>- Valida assinatura JWT usando a chave do cache (via cabeçalho 'kid')<br/>- Valida expiração ('exp') e emissor ('iss')<br/>- Extrai 'preferred_username' = "nicolas"<br/>- NENHUMA chamada extra ao Keycloak é necessária!
+      </div>
+    </div>
+
+    <!-- CARD 4: OPENFGA REBAC CHECK -->
+    <div class="card">
+      <h2 class="card-title"><span class="badge badge-green">ReBAC Authorization</span> Consulta de Permissão do Incus ao OpenFGA (Check Request)</h2>
+      <p class="card-desc">O daemon do Incus (PEP) delega a autorização ao OpenFGA (PDP) via chamada REST POST /check. O OpenFGA avalia o grafo Zanzibar no PostgreSQL e autoriza ou rejeita a operação.</p>
       <div class="mermaid">
 sequenceDiagram
     autonumber
@@ -209,22 +233,22 @@ sequenceDiagram
     
     rect rgb(22, 27, 34)
         Note over INCUS: 1. Validação Criptográfica do Token (PEP)
-        INCUS->>INCUS: Valida assinatura do JWT com a chave pública do Keycloak
-        INCUS->>INCUS: Extrai claim oidc.claim: "preferred_username" = "nicolas"
+        INCUS->>INCUS: Valida assinatura do JWT com a chave pública no cache JWKS
+        INCUS->>INCUS: Extrai preferred_username = "nicolas"
         INCUS->>INCUS: Identifica ação requerida: relation="operator", object="project:iam-project"
     end
 
     rect rgb(22, 27, 34)
-        Note over INCUS,FGA: 2. Consulta de Decisão de Acesso (Check Request)
-        INCUS->>FGA: POST /stores/01KY7TAWJYJ5KR48TK19E1CT99/check<br/>Header: Authorization: Bearer <OPENFGA_API_TOKEN><br/>{<br/>  "tuple_key": {<br/>    "user": "user:nicolas",<br/>    "relation": "operator",<br/>    "object": "project:iam-project"<br/>  }<br/>}
+        Note over INCUS,FGA: 2. Consulta de Decisão de Acesso (Check Request via REST API)
+        INCUS->>FGA: POST /stores/01KY7TAWJYJ5KR48TK19E1CT99/check<br/>Header: Authorization: Bearer <OPENFGA_API_TOKEN><br/>Content-Type: application/json<br/>{<br/>  "tuple_key": {<br/>    "user": "user:nicolas",<br/>    "relation": "operator",<br/>    "object": "project:iam-project"<br/>  }<br/>}
     end
 
     rect rgb(22, 27, 34)
-        Note over FGA,DB: 3. Resolução do Grafo Zanzibar no PostgreSQL
-        FGA->>DB: Busca relações diretas e heranças de grupos
-        Note over DB: Grafo de relações avaliado:<br/>1. user:nicolas é membro de group:iam-project-admin<br/>2. group:iam-project-admin#member tem relation "admin" em project:iam-project<br/>3. No modelo ReBAC: relation "admin" herda "operator" e "viewer"
-        DB-->>FGA: Grafo resolvido: Associação VÁLIDA
-        FGA-->>INCUS: HTTP 200 {"allowed": true}
+        Note over FGA,DB: 3. Resolução Recursiva do Grafo Zanzibar no PostgreSQL
+        FGA->>DB: SELECT * FROM tuple_key WHERE ...
+        Note over DB: Grafo avaliado:<br/>1. user:nicolas pertence a group:iam-project-admin (sincronizado pelo plugin SPI)<br/>2. group:iam-project-admin#member tem relação "admin" em project:iam-project<br/>3. Relação "admin" herda "operator" e "viewer"<br/>4. Caminho CONECTADO!
+        DB-->>FGA: Relação VÁLIDA
+        FGA-->>INCUS: HTTP 200 {"allowed": true, "resolution": ""}
     end
 
     rect rgb(22, 27, 34)
