@@ -121,10 +121,56 @@ As credenciais necessárias para o cluster Incus interagir com o OpenFGA foram c
 ### Política de Acesso Restrito (`iam-reader`):
 ```hcl
 path "secret/data/iam/*" {
-  capabilities = ["read"]
+  capabilities = ["create", "read", "update"]
 }
 ```
 Um token de serviço derivado desta política foi gerado para automação. Tentativas de escrita ou leitura fora do escopo `iam/*` são barradas com `403 Permission Denied`.
+
+---
+
+## 6.1 🎲 Senhas Dinâmicas vs. Credenciais Fixas no OpenBao
+
+Uma dúvida frequente de governança é: **quais senhas são geradas aleatoriamente pelo OpenBao e quais devem ser controladas manualmente?**
+
+| Segredo | Caminho no OpenBao | Natureza | Comportamento na Inicialização |
+| :--- | :--- | :--- | :--- |
+| **`keycloak_db_password`** | `secret/data/iam/database` | **100% Dinâmica / Aleatória** (32 caracteres alfanuméricos) | Comunicação Máquina-para-Máquina (M2M). Nenhum ser humano precisa memorizar. Gerada no bootstrap e reutilizada. |
+| **`openfga_db_password`** | `secret/data/iam/database` | **100% Dinâmica / Aleatória** (32 caracteres alfanuméricos) | M2M entre o serviço OpenFGA e seu PostgreSQL isolado. |
+| **`api_token` / `preshared_key`**| `secret/data/iam/openfga` | **100% Dinâmica / Aleatória** (token de serviço) | Utilizado pelo Incus e pelo plugin SPI para autenticar na API `:8080` do OpenFGA. |
+| **`admin_password`** | `secret/data/iam/keycloak` | **Controlada pela Equipe** (Master Admin) | Acesso humano ao console administrativo (`/admin`). Gravada no OpenBao como cofre central, mas mantida fixa para facilitar operação e resgate de emergência. |
+| **`client_id` / `client_secret`** | `secret/data/iam/github` | **Emitida pelo GitHub OAuth** | Gerada externamente no portal de desenvolvedores do GitHub (`cloudlabs-ufscar`). Armazenada no OpenBao para nunca vazar no Git. |
+
+> [!TIP]
+> **Idempotência de Senhas:** Quando o Ansible sobe a infraestrutura, ele consulta se `secret/data/iam/database` já existe. Se existir, ele **mantém a senha original**. Senhas de banco nunca são sobrescritas aleatoriamente em deploys rotineiros, evitando corrupção de acesso ao banco existente.
+
+---
+
+## 6.2 🛡️ Backup & Restore de Certificados TLS da Let's Encrypt (`secret/data/iam/tls`)
+
+Para proteger o laboratório contra os **Rate Limits severos da Let's Encrypt** (limite de 5 reemissões por semana para o mesmo domínio) e garantir recuperação instantânea em caso de desastre (Disaster Recovery do `idp.maas`), a chave privada e a cadeia de certificados são sincronizadas com o OpenBao:
+
+```mermaid
+flowchart TD
+    subgraph Deploy_TLS["Ansible: configure-tls.yml"]
+        D1["Verifica se certificado existe em /etc/letsencrypt/live/"] -->|Não existe| D2{"Consulta OpenBao :8200<br/>secret/data/iam/tls"}
+        D2 -->|Existe no Cofre| D3["⭐ RESTAURA DO OPENBAO!<br/>Grava fullchain.pem e privkey.pem<br/>(Sem bater na Let's Encrypt)"]
+        D2 -->|Não existe no Cofre| D4["Executa certbot certonly --standalone<br/>(Primeira emissão absoluta)"]
+        D4 --> D5["Faz upload do backup para o OpenBao<br/>POST /v1/secret/data/iam/tls"]
+        D3 --> D6["Compila haproxy.pem (chmod 0644)"]
+        D5 --> D6
+    end
+
+    subgraph Cron_Sync["Cron Job: renew-cert.sh"]
+        C1["certbot renew a cada 60 dias"] --> C2["Atualiza haproxy.pem e envia HUP"]
+        C2 --> C3["Hook pós-renovação atualiza secret/data/iam/tls no OpenBao"]
+    end
+```
+
+### O que fica armazenado em `secret/data/iam/tls`:
+* `fullchain`: Cadeia completa do certificado público emitido pela Let's Encrypt.
+* `privkey`: Chave privada RSA correspondente.
+
+Se o servidor `idp.maas` for destruído e recriado do zero, o Ansible recupera os arquivos diretamente do OpenBao em menos de 1 segundo, **sem gastar cotas da Let's Encrypt e sem risco de bloqueio do domínio**.
 
 ---
 

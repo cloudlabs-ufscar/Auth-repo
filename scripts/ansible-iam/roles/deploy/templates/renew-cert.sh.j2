@@ -2,6 +2,8 @@
 
 DOMAIN="{{ iam_domain }}"
 HAPROXY_PEM="{{ haproxy_pem_path }}"
+OPENBAO_ADDR="http://{{ openbao_leader | default('vault.maas') }}:8200"
+TOKEN_FILE="/opt/iam/.openbao-token"
 
 # 1. Renovação do certificado (a porta 80 deve estar livre)
 /usr/bin/certbot renew --standalone --quiet
@@ -11,8 +13,26 @@ cat /etc/letsencrypt/live/$DOMAIN/fullchain.pem \
     /etc/letsencrypt/live/$DOMAIN/privkey.pem \
     > $HAPROXY_PEM
 
-# 3. Garante a permissão restrita para o arquivo combinado
-chmod 600 $HAPROXY_PEM
+# 3. Garante permissão legível pelo container HAProxy
+chmod 0644 $HAPROXY_PEM
 
-# 4. Reload suave no HAProxy (Envia sinal HUP para reler o certificado sem dar downtime)
+# 4. Sincroniza backup com o OpenBao caso o token de acesso exista
+if [ -f "$TOKEN_FILE" ] && command -v jq >/dev/null 2>&1; then
+    TOKEN=$(cat "$TOKEN_FILE" | tr -d '\r\n')
+    FULLCHAIN=$(cat /etc/letsencrypt/live/$DOMAIN/fullchain.pem)
+    PRIVKEY=$(cat /etc/letsencrypt/live/$DOMAIN/privkey.pem)
+    
+    # Envia backup atualizado para o OpenBao via REST API
+    jq -n \
+      --arg fc "$FULLCHAIN" \
+      --arg pk "$PRIVKEY" \
+      '{data: {fullchain: $fc, privkey: $pk}}' | \
+      curl -s -X POST \
+        -H "X-Vault-Token: $TOKEN" \
+        -H "Content-Type: application/json" \
+        -d @- \
+        "$OPENBAO_ADDR/v1/secret/data/iam/tls" > /dev/null 2>&1 || true
+fi
+
+# 5. Reload suave no HAProxy (Envia sinal HUP para reler o certificado sem dar downtime)
 docker kill -s HUP haproxy || docker restart haproxy

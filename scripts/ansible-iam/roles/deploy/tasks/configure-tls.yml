@@ -1,10 +1,61 @@
 ---
-- name: Check if SSL Certificate already exists
+- name: Check if SSL Certificate already exists locally
   ansible.builtin.stat:
     path: "/etc/letsencrypt/live/{{ iam_domain }}/fullchain.pem"
   register: cert_stat
 
-- name: Get the first SSL cert (Only if it doesn't exist)
+- name: Try to restore TLS certificate from OpenBao backup
+  block:
+    - name: Fetch TLS certificate from OpenBao
+      ansible.builtin.uri:
+        url: "http://{{ openbao_leader | default('vault.maas') }}:8200/v1/secret/data/iam/tls"
+        headers:
+          X-Vault-Token: "{{ openbao_token }}"
+        status_code: [200, 404]
+      register: openbao_tls_resp
+      when: not cert_stat.stat.exists and openbao_token is defined
+
+    - name: Restore certificate files from OpenBao if available
+      block:
+        - name: Ensure letsencrypt live directory exists
+          ansible.builtin.file:
+            path: "/etc/letsencrypt/live/{{ iam_domain }}"
+            state: directory
+            owner: root
+            group: root
+            mode: "0755"
+
+        - name: Write restored fullchain.pem
+          ansible.builtin.copy:
+            content: "{{ openbao_tls_resp.json.data.data.fullchain }}"
+            dest: "/etc/letsencrypt/live/{{ iam_domain }}/fullchain.pem"
+            owner: root
+            group: root
+            mode: "0644"
+
+        - name: Write restored privkey.pem
+          ansible.builtin.copy:
+            content: "{{ openbao_tls_resp.json.data.data.privkey }}"
+            dest: "/etc/letsencrypt/live/{{ iam_domain }}/privkey.pem"
+            owner: root
+            group: root
+            mode: "0600"
+      when:
+        - not cert_stat.stat.exists
+        - openbao_tls_resp is defined
+        - openbao_tls_resp.status == 200
+        - openbao_tls_resp.json is defined
+        - openbao_tls_resp.json.data is defined
+        - openbao_tls_resp.json.data.data is defined
+        - openbao_tls_resp.json.data.data.fullchain is defined
+  when: not cert_stat.stat.exists
+
+- name: Check if certificate exists after OpenBao restore attempt
+  ansible.builtin.stat:
+    path: "/etc/letsencrypt/live/{{ iam_domain }}/fullchain.pem"
+  register: cert_stat_post_restore
+
+- name: Get the first SSL cert via Certbot (Only if neither exists on disk nor in OpenBao)
   ansible.builtin.command:
     cmd: >
       certbot certonly --standalone
@@ -12,7 +63,36 @@
       --email {{ certbot_email_cloudlabs }}
       --agree-tos
       --non-interactive
-  when: not cert_stat.stat.exists
+  when: not cert_stat_post_restore.stat.exists
+
+- name: Backup new Let's Encrypt certificate to OpenBao
+  block:
+    - name: Read fullchain.pem
+      ansible.builtin.slurp:
+        src: "/etc/letsencrypt/live/{{ iam_domain }}/fullchain.pem"
+      register: fullchain_b64
+
+    - name: Read privkey.pem
+      ansible.builtin.slurp:
+        src: "/etc/letsencrypt/live/{{ iam_domain }}/privkey.pem"
+      register: privkey_b64
+
+    - name: Upload TLS backup to OpenBao
+      ansible.builtin.uri:
+        url: "http://{{ openbao_leader | default('vault.maas') }}:8200/v1/secret/data/iam/tls"
+        method: POST
+        headers:
+          X-Vault-Token: "{{ openbao_token }}"
+        body_format: json
+        body:
+          data:
+            fullchain: "{{ fullchain_b64.content | b64decode }}"
+            privkey: "{{ privkey_b64.content | b64decode }}"
+        status_code: [200, 204]
+      ignore_errors: true
+  when:
+    - not cert_stat_post_restore.stat.exists
+    - openbao_token is defined
 
 - name: Generate HAProxy .pem file (Overwrite mode)
   ansible.builtin.shell:

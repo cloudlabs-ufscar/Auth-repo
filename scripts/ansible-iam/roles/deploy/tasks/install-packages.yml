@@ -6,6 +6,7 @@
       - curl
       - gnupg
       - certbot
+      - jq
     state: present
     update_cache: true
 
