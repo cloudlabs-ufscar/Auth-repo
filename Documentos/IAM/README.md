@@ -58,6 +58,11 @@ A documentação está dividida em 5 módulos estruturados:
    * Validação de claims do repositório (`cloudlabs-ufscar/*`) e emissão de token com política `iam-reader`.
    * [**Versão Interativa (.html)**](fluxo-github-oidc-openbao.html): Diagrama sequencial visual com resumo das 4 fases.
 
+9. [**Bootstrap Ansible (Day 0) e Expansão de Servidores / Racks (Day 2)**](ansible-bootstrap-and-scaleout.md)
+   * Sequência completa de provisionamento do zero: OpenBao HA -> Tinyproxy -> Stack IAM.
+   * Procedimento técnico padronizado para scale-out (novos racks, nós Incus, nós OpenStack e nós OpenBao).
+   * Integração dinâmica com o load balancer HAProxy e concessão de tuplas de acesso no OpenFGA.
+
 ---
 
 ## 🏗️ Visão Geral da Arquitetura
@@ -149,3 +154,4 @@ flowchart TD
 | [`fluxo-autenticacao.html`](fluxo-autenticacao.html) | Página HTML standalone com Mermaid interativo (dark theme, pan/zoom) para visualização offline. |
 | [`github-oidc-openbao-flow.md`](github-oidc-openbao-flow.md) | Documentação completa do fluxo Zero-Trust GitHub Actions OIDC para leitura de segredos no OpenBao. |
 | [`fluxo-github-oidc-openbao.html`](fluxo-github-oidc-openbao.html) | Diagrama sequencial interativo HTML da autenticação OIDC e troca de tokens do OpenBao. |
+| [`ansible-bootstrap-and-scaleout.md`](ansible-bootstrap-and-scaleout.md) | Guia completo de bootstrap do zero (Day 0) e expansão para novos servidores e racks (Day 2). |
