@@ -22,11 +22,11 @@ services:
     restart: unless-stopped
     container_name: postgres-keycloak
     environment:
-      POSTGRES_DB: keycloak
-      POSTGRES_USER: keycloak
-      POSTGRES_PASSWORD: password
+      POSTGRES_DB: "{{ postgres_keycloak_db | default('keycloak') }}"
+      POSTGRES_USER: "{{ postgres_keycloak_user | default('keycloak') }}"
+      POSTGRES_PASSWORD: "{{ postgres_keycloak_password | default('password') }}"
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U keycloak" ]
+      test: [ "CMD-SHELL", "pg_isready -U {{ postgres_keycloak_user | default('keycloak') }}" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -42,10 +42,10 @@ services:
     container_name: postgres-openfga
     command: postgres -c 'max_connections=100'
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=password
+      - POSTGRES_USER={{ postgres_openfga_user | default('postgres') }}
+      - POSTGRES_PASSWORD={{ postgres_openfga_password | default('password') }}
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      test: [ "CMD-SHELL", "pg_isready -U {{ postgres_openfga_user | default('postgres') }}" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -59,7 +59,7 @@ services:
     container_name: migrate
     environment:
       - OPENFGA_DATASTORE_ENGINE=postgres
-      - OPENFGA_DATASTORE_URI=postgres://postgres:password@postgres-openfga:5432/postgres?sslmode=disable
+      - OPENFGA_DATASTORE_URI=postgres://{{ postgres_openfga_user | default('postgres') }}:{{ postgres_openfga_password | default('password') }}@postgres-openfga:5432/{{ postgres_openfga_db | default('postgres') }}?sslmode=disable
     command: migrate
     depends_on:
       postgres-openfga:
@@ -72,7 +72,7 @@ services:
     command: run
     environment:
       - OPENFGA_DATASTORE_ENGINE=postgres
-      - OPENFGA_DATASTORE_URI=postgres://postgres:password@postgres-openfga:5432/postgres?sslmode=disable
+      - OPENFGA_DATASTORE_URI=postgres://{{ postgres_openfga_user | default('postgres') }}:{{ postgres_openfga_password | default('password') }}@postgres-openfga:5432/{{ postgres_openfga_db | default('postgres') }}?sslmode=disable
       - OPENFGA_DATASTORE_MAX_OPEN_CONNS=100
       #- OPENFGA_AUTHN_METHOD=preshared
       #- OPENFGA_AUTHN_PRESHARED_KEYS=cloudlabsiam
@@ -96,14 +96,14 @@ services:
       - start-dev
       - --import-realm
     environment:
-      KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: "password!!!!"
+      KEYCLOAK_ADMIN: "{{ keycloak_admin_user | default('admin') }}"
+      KEYCLOAK_ADMIN_PASSWORD: "{{ keycloak_admin_password | default('password!!!!') }}"
       KC_DB: postgres
       KC_DB_URL_HOST: postgres-keycloak
-      KC_DB_URL_DATABASE: keycloak
+      KC_DB_URL_DATABASE: "{{ postgres_keycloak_db | default('keycloak') }}"
       KC_DB_SCHEMA: public
-      KC_DB_USERNAME: keycloak
-      KC_DB_PASSWORD: password
+      KC_DB_USERNAME: "{{ postgres_keycloak_user | default('keycloak') }}"
+      KC_DB_PASSWORD: "{{ postgres_keycloak_password | default('password') }}"
       KC_HOSTNAME: "{{ iam_domain }}"
       KC_HOSTNAME_PORT: 8443       
       KC_HOSTNAME_STRICT_HTTPS: "true"

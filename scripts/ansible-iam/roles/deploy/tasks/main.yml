@@ -7,7 +7,11 @@
 - name: Packages Installation
   ansible.builtin.import_tasks: install-packages.yml
 
-# 2. Estruturação dos arquivos na máquina alvo
+# 2. Obtenção de segredos do OpenBao
+- name: Fetch secrets from OpenBao
+  ansible.builtin.import_tasks: fetch-secrets.yml
+
+# 3. Estruturação dos arquivos na máquina alvo
 - name: Copy files in IAM machine
   ansible.builtin.import_tasks: copy-archives.yml
 

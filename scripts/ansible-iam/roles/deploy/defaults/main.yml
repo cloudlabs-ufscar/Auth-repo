@@ -1,5 +1,20 @@
 #SPDX-License-Identifier: MIT-0
 ---
 # defaults file for deploy
+openbao_url: "http://vault.maas:8200"
+openbao_token_file: "{{ deploy_dir }}/.openbao-token"
+openbao_token: ""
+
+postgres_keycloak_user: "keycloak"
+postgres_keycloak_password: "password"
+postgres_keycloak_db: "keycloak"
+
+postgres_openfga_user: "postgres"
+postgres_openfga_password: "password"
+postgres_openfga_db: "postgres"
+
+keycloak_admin_user: "admin"
+keycloak_admin_password: "password!!!!"
+
 github_client_id: ""
 github_client_secret: ""
