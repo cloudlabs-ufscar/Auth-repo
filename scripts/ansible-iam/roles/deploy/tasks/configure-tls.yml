@@ -24,10 +24,10 @@
 
 - name: Adjust permissions
   ansible.builtin.file:
-    path: /etc/letsencrypt/live/{{ iam_domain }}/privkey.pem
+    path: "{{ haproxy_pem_path }}"
     owner: root
     group: root
-    mode: '755'
+    mode: '0644'
   when: haproxy_pem_file.rc == 0
 
 - name: Cron Job certbot renew (Runs twice a day)
