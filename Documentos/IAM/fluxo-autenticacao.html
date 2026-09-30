@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Fluxo de Autenticação Keycloak + GitHub</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-color: #0d1117;
+      --card-bg: #161b22;
+      --border-color: #30363d;
+      --text-main: #c9d1d9;
+      --text-bright: #f0f6fc;
+      --accent: #58a6ff;
+      --accent-green: #3fb950;
+      --accent-purple: #bc8cff;
+    }
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      font-family: 'Inter', sans-serif;
+      margin: 0;
+      padding: 30px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .container {
+      max-width: 1200px;
+      width: 100%;
+    }
+    header {
+      margin-bottom: 30px;
+      text-align: center;
+    }
+    h1 {
+      color: var(--text-bright);
+      font-size: 28px;
+      margin-bottom: 8px;
+    }
+    p.subtitle {
+      color: #8b949e;
+      font-size: 16px;
+      margin: 0;
+    }
+    .card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      margin-bottom: 30px;
+      overflow-x: auto;
+    }
+    .mermaid {
+      display: flex;
+      justify-content: center;
+    }
+    .legend {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 16px;
+      margin-top: 20px;
+    }
+    .legend-item {
+      background: #21262d;
+      border: 1px solid var(--border-color);
+      padding: 16px;
+      border-radius: 8px;
+    }
+    .legend-title {
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .legend-desc {
+      font-size: 13px;
+      color: #8b949e;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🔐 Fluxo de Autenticação e Onboarding Keycloak + GitHub</h1>
+      <p class="subtitle">Diagrama de Sequência de Requisições HTTP, OAuth 2.0 e Execução do SPI Validador de Organização</p>
+    </header>
+
+    <div class="card">
+      <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor User as 👤 Usuário (Browser)
+    participant KC as 🛡️ Keycloak (:8443)
+    participant GH as 🐙 GitHub OAuth (github.com)
+    participant GHAPI as 📡 GitHub REST API (api.github.com)
+    participant PG as 🗄️ PostgreSQL (Keycloak DB)
+
+    Note over User,KC: FASE 1: Início e Redirecionamento
+    User->>KC: GET /realms/cloudlabs/protocol/openid-connect/auth
+    KC-->>User: HTTP 200 (Renderiza tela de login com botão "GitHub")
+    User->>KC: GET /realms/cloudlabs/broker/github/login
+    KC-->>User: HTTP 302 Redirect para github.com/login/oauth/authorize
+
+    Note over User,GH: FASE 2: Autorização e Consentimento no GitHub
+    User->>GH: GET /login/oauth/authorize?client_id=...&scope=read:org...
+    User->>GH: POST /login (Credenciais + 2FA no GitHub)
+    GH-->>User: HTTP 302 Redirect para Keycloak (?code=XYZ&state=ABC)
+
+    Note over User,KC: FASE 3: Callback, Validação SPI e Onboarding
+    User->>KC: GET /realms/cloudlabs/broker/github/endpoint?code=XYZ&state=ABC
+    KC->>GH: POST https://github.com/login/oauth/access_token
+    GH-->>KC: HTTP 200 {"access_token": "gho_...", "scope": "read:org..."}
+    KC->>GHAPI: GET https://api.github.com/user
+    GHAPI-->>KC: HTTP 200 {"login": "n-qber", "email": "..."}
+    
+    rect rgb(30, 41, 59)
+        Note over KC,PG: Execução do Fluxo "cloudlabs-first-broker-login"
+        KC->>PG: INSERT INTO user_entity (Cria o usuário local "n-qber")
+        KC->>GHAPI: GET /orgs/cloudlabs-ufscar/members/n-qber (SPI valida a Org)
+        GHAPI-->>KC: HTTP 204 No Content (Usuário é membro ativo!)
+        KC->>PG: INSERT INTO user_required_actions ("UPDATE_PASSWORD")
+    end
+
+    Note over User,KC: FASE 4: Criação da Senha Local e Conclusão
+    KC-->>User: HTTP 302 /login-actions/required-action?execution=UPDATE_PASSWORD
+    User->>KC: GET /login-actions/required-action (Exibe tela de Definir Senha)
+    User->>KC: POST /login-actions/required-action (Submete nova senha)
+    KC->>PG: INSERT INTO credential (Grava hash PBKDF2-SHA256)
+    KC-->>User: HTTP 302 Redirect com Cookies de Sessão e Tokens OIDC JWT
+      </div>
+    </div>
+
+    <div class="legend">
+      <div class="legend-item">
+        <div class="legend-title">🟦 Fase 1: Início</div>
+        <div class="legend-desc">O usuário clica em "GitHub" e o Keycloak gera os cookies de estado CSRF e redireciona ao GitHub.</div>
+      </div>
+      <div class="legend-item">
+        <div class="legend-title">🟩 Fase 2: Consentimento</div>
+        <div class="legend-desc">Autenticação no GitHub com escopo <code>read:org</code>. O GitHub devolve o navegador com o código temporário.</div>
+      </div>
+      <div class="legend-item">
+        <div class="legend-title">🟪 Fase 3: Validação do SPI</div>
+        <div class="legend-desc">O Keycloak troca o código pelo token <code>gho_...</code>. O plugin consulta a API do GitHub e aprova apenas se membro.</div>
+      </div>
+      <div class="legend-item">
+        <div class="legend-title">🟧 Fase 4: Senha Local</div>
+        <div class="legend-desc">O usuário cria sua senha local (PBKDF2). A partir daí, tem soberania de login offline direto no Keycloak.</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      sequence: {
+        showSequenceNumbers: true,
+        actorMargin: 50,
+        boxMargin: 10,
+        boxTextMargin: 5,
+        noteMargin: 10,
+        messageMargin: 35
+      }
+    });
+  </script>
+</body>
+</html>
