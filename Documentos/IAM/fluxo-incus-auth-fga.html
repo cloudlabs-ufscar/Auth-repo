@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Fluxos Incus: CLI, Web UI & OpenFGA ReBAC</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-color: #0d1117;
+      --card-bg: #161b22;
+      --border-color: #30363d;
+      --text-main: #c9d1d9;
+      --text-bright: #f0f6fc;
+      --accent: #58a6ff;
+      --accent-green: #3fb950;
+      --accent-purple: #bc8cff;
+      --accent-gold: #f2cc60;
+    }
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      font-family: 'Inter', sans-serif;
+      margin: 0;
+      padding: 30px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .container {
+      max-width: 1200px;
+      width: 100%;
+    }
+    header {
+      margin-bottom: 24px;
+      text-align: center;
+    }
+    h1 {
+      color: var(--text-bright);
+      font-size: 28px;
+      margin-bottom: 8px;
+    }
+    p.subtitle {
+      color: #8b949e;
+      font-size: 16px;
+      margin: 0;
+    }
+    .card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      margin-bottom: 30px;
+      overflow-x: auto;
+    }
+    .card-title {
+      color: var(--text-bright);
+      font-size: 20px;
+      margin-top: 0;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .card-desc {
+      color: #8b949e;
+      font-size: 14px;
+      margin-top: 0;
+      margin-bottom: 20px;
+    }
+    .mermaid {
+      display: flex;
+      justify-content: center;
+      min-width: 850px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .badge-blue { background: rgba(56, 139, 253, 0.15); color: var(--accent); }
+    .badge-purple { background: rgba(188, 140, 255, 0.15); color: var(--accent-purple); }
+    .badge-green { background: rgba(63, 185, 80, 0.15); color: var(--accent-green); }
+    code {
+      font-family: 'JetBrains Mono', monospace;
+      background: rgba(110, 118, 129, 0.2);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 13px;
+      color: var(--accent);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🛡️ Autenticação e Autorização no Incus (Cirrus & Stratus)</h1>
+      <p class="subtitle">Comparativo técnico entre Device Code (CLI), Auth Code com PKCE (Web UI) e Autorização ReBAC via OpenFGA</p>
+    </header>
+
+    <!-- CARD 1: INCUS CLI -->
+    <div class="card">
+      <h2 class="card-title"><span class="badge badge-blue">CLI Flow</span> Autenticação Incus CLI (Device Authorization Grant - RFC 8628)</h2>
+      <p class="card-desc">Projetado para ambientes headless e sessões SSH sem capacidade de receber redirecionamento HTTP local. O terminal faz polling enquanto o usuário digita o código curto no navegador.</p>
+      <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Dev as 👤 Operador (Terminal CLI)
+    participant CLI as 💻 Incus CLI
+    participant INCUS as 🌐 Incus Server (:8443)
+    participant KC as 🛡️ Keycloak (:8443)
+    actor Browser as 🌍 Navegador Web do Operador
+
+    Dev->>CLI: incus remote add cirrus https://cumulus.dc.ufscar.br:8443 --auth-type=oidc
+    CLI->>INCUS: GET /1.0 (Solicita metadados OIDC do servidor)
+    INCUS-->>CLI: Retorna oidc.issuer (Keycloak) e client_id ("incus-cirrus")
+    
+    rect rgb(22, 27, 34)
+        Note over CLI,KC: FASE 1: Solicitação de Código de Dispositivo (Device Code)
+        CLI->>KC: POST /protocol/openid-connect/auth/device (client_id=incus-cirrus)
+        KC-->>CLI: Retorna device_code, user_code ("WDJB-HGZX"), verification_uri, interval=5s
+        CLI-->>Dev: Exibe no terminal:<br/>"Acesse https://cumulus.dc.ufscar.br:8443/realms/cloudlabs/device<br/>e digite o código: WDJB-HGZX"
+    end
+
+    rect rgb(22, 27, 34)
+        Note over Dev,KC: FASE 2: Consentimento e Autenticação no Navegador
+        Dev->>Browser: Abre a URL informada
+        Browser->>KC: GET /realms/cloudlabs/device
+        Browser->>KC: Submete código: "WDJB-HGZX"
+        KC-->>Browser: Exibe tela de autenticação
+        Browser->>KC: Login (GitHub OAuth SSO ou Senha Local)
+        KC-->>Browser: "Dispositivo autorizado com sucesso!"
+    end
+
+    rect rgb(22, 27, 34)
+        Note over CLI,KC: FASE 3: Polling Assíncrono e Resgate do JWT
+        loop A cada 5 segundos
+            CLI->>KC: POST /protocol/openid-connect/token (grant_type=device_code)
+            alt Usuário ainda não autorizou
+                KC-->>CLI: HTTP 400 {"error": "authorization_pending"}
+            else Autorização concluída no navegador
+                KC-->>CLI: HTTP 200 {"access_token": "JWT...", "refresh_token": "..."}
+            end
+        end
+        CLI->>CLI: Grava tokens em ~/.config/incus/oidc/cirrus.json
+        CLI-->>Dev: "Remote cirrus added successfully!"
+    end
+      </div>
+    </div>
+
+    <!-- CARD 2: INCUS WEB UI -->
+    <div class="card">
+      <h2 class="card-title"><span class="badge badge-purple">Web UI Flow</span> Autenticação Incus Web UI (Auth Code com PKCE - RFC 7636)</h2>
+      <p class="card-desc">Projetado para navegadores completos. Utiliza redirecionamento nativo HTTP 302 protegido por PKCE (Proof Key for Code Exchange) para prevenir roubo de código de autorização.</p>
+      <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Dev as 👤 Usuário (Navegador)
+    participant UI as 🖥️ Incus Web UI (Frontend)
+    participant KC as 🛡️ Keycloak (IdP)
+    participant INCUS as ⚙️ Incus API Backend
+
+    Dev->>UI: Acessa https://cirrus.dc.ufscar.br:8443/ui/
+    UI->>UI: Gera code_verifier criptográfico e calcula code_challenge (SHA-256)
+    UI-->>Dev: HTTP 302 Redirect para Keycloak
+    
+    rect rgb(22, 27, 34)
+        Note over Dev,KC: Redirecionamento OIDC com PKCE
+        Dev->>KC: GET /protocol/openid-connect/auth?<br/>client_id=incus-cirrus&response_type=code<br/>&code_challenge=XYZ&code_challenge_method=S256<br/>&redirect_uri=https://cirrus.dc.ufscar.br:8443/ui/oidc/callback
+        KC-->>Dev: Renderiza tela de login
+        Dev->>KC: Autentica (GitHub ou Senha)
+        KC-->>Dev: HTTP 302 Redirect para Incus Callback (?code=AUTH_CODE_123)
+    end
+
+    rect rgb(22, 27, 34)
+        Note over UI,KC: Troca de Código por Tokens (Sem expor credenciais)
+        Dev->>UI: GET /ui/oidc/callback?code=AUTH_CODE_123
+        UI->>KC: POST /protocol/openid-connect/token<br/>(code=AUTH_CODE_123, code_verifier=SEGREDO_PKCE)
+        KC->>KC: Valida se SHA256(code_verifier) == code_challenge original
+        KC-->>UI: HTTP 200 {"access_token": "JWT...", "id_token": "..."}
+        UI->>UI: Salva sessão no SessionStorage
+        UI->>INCUS: GET /1.0 com Header "Authorization: Bearer JWT"
+        INCUS-->>UI: Retorna dados do cluster e recursos permitidos
+        UI-->>Dev: Exibe painel de controle do Incus
+    end
+      </div>
+    </div>
+
+    <!-- CARD 3: OPENFGA REBAC -->
+    <div class="card">
+      <h2 class="card-title"><span class="badge badge-green">ReBAC Authorization</span> Validação de Permissão no OpenFGA (Zanzibar Check)</h2>
+      <p class="card-desc">Toda operação solicitada no Incus (criar VM, parar container, listar discos) passa por uma verificação de grafo ReBAC no OpenFGA antes de ser executada.</p>
+      <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Dev as 👤 Usuário (nicolas)
+    participant CLI as 💻 Incus CLI / Web UI
+    participant INCUS as 🛡️ Incus Daemon (PEP)
+    participant FGA as ⚖️ OpenFGA v1.5.5 (PDP)
+    participant DB as 🗄️ PostgreSQL (OpenFGA Tuples)
+
+    Dev->>CLI: incus launch images:ubuntu/24.04 vm1 --project iam-project
+    CLI->>INCUS: POST /1.0/instances?project=iam-project<br/>(Header: Authorization: Bearer JWT)
+    
+    rect rgb(22, 27, 34)
+        Note over INCUS: 1. Validação Criptográfica do Token (PEP)
+        INCUS->>INCUS: Valida assinatura do JWT com a chave pública do Keycloak
+        INCUS->>INCUS: Extrai claim oidc.claim: "preferred_username" = "nicolas"
+        INCUS->>INCUS: Identifica ação requerida: relation="operator", object="project:iam-project"
+    end
+
+    rect rgb(22, 27, 34)
+        Note over INCUS,FGA: 2. Consulta de Decisão de Acesso (Check Request)
+        INCUS->>FGA: POST /stores/01KY7TAWJYJ5KR48TK19E1CT99/check<br/>Header: Authorization: Bearer <OPENFGA_API_TOKEN><br/>{<br/>  "tuple_key": {<br/>    "user": "user:nicolas",<br/>    "relation": "operator",<br/>    "object": "project:iam-project"<br/>  }<br/>}
+    end
+
+    rect rgb(22, 27, 34)
+        Note over FGA,DB: 3. Resolução do Grafo Zanzibar no PostgreSQL
+        FGA->>DB: Busca relações diretas e heranças de grupos
+        Note over DB: Grafo de relações avaliado:<br/>1. user:nicolas é membro de group:iam-project-admin<br/>2. group:iam-project-admin#member tem relation "admin" em project:iam-project<br/>3. No modelo ReBAC: relation "admin" herda "operator" e "viewer"
+        DB-->>FGA: Grafo resolvido: Associação VÁLIDA
+        FGA-->>INCUS: HTTP 200 {"allowed": true}
+    end
+
+    rect rgb(22, 27, 34)
+        Note over INCUS: 4. Execução da Operação
+        INCUS->>INCUS: Inicia criação do container/VM no cluster
+        INCUS-->>CLI: HTTP 200 Operation Success {"status": "Running"}
+        CLI-->>Dev: "Instance vm1 successfully created!"
+    end
+      </div>
+    </div>
+  </div>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      themeVariables: {
+        darkMode: true,
+        background: '#161b22',
+        primaryColor: '#1f6feb',
+        primaryTextColor: '#f0f6fc',
+        primaryBorderColor: '#388bfd',
+        lineColor: '#58a6ff',
+        secondaryColor: '#238636',
+        tertiaryColor: '#161b22',
+        fontFamily: 'Inter, sans-serif',
+        fontSize: '13px'
+      }
+    });
+  </script>
+</body>
+</html>

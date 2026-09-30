@@ -63,6 +63,12 @@ A documentação está dividida em 5 módulos estruturados:
    * Procedimento técnico padronizado para scale-out (novos racks, nós Incus, nós OpenStack e nós OpenBao).
    * Integração dinâmica com o load balancer HAProxy e concessão de tuplas de acesso no OpenFGA.
 
+10. [**Autenticação e Autorização no Incus: CLI, Web UI e OpenFGA (ReBAC)**](incus-auth-and-authorization.md)
+   * Comparativo técnico detalhado: por que a CLI usa Device Code (RFC 8628) e a Web UI usa Auth Code com PKCE (RFC 7636).
+   * Fluxo de autorização em tempo real: o daemon do Incus como PEP e o OpenFGA como PDP (verificação de grafo Zanzibar).
+   * Sincronização automática de grupos do Keycloak para o OpenFGA via plugin SPI (`keycloak-openfga-event-publisher`).
+   * [**Versão Interativa (.html)**](fluxo-incus-auth-fga.html): Três diagramas sequenciais completos com dark theme e visualização direta.
+
 ---
 
 ## 🏗️ Visão Geral da Arquitetura
@@ -155,3 +161,5 @@ flowchart TD
 | [`github-oidc-openbao-flow.md`](github-oidc-openbao-flow.md) | Documentação completa do fluxo Zero-Trust GitHub Actions OIDC para leitura de segredos no OpenBao. |
 | [`fluxo-github-oidc-openbao.html`](fluxo-github-oidc-openbao.html) | Diagrama sequencial interativo HTML da autenticação OIDC e troca de tokens do OpenBao. |
 | [`ansible-bootstrap-and-scaleout.md`](ansible-bootstrap-and-scaleout.md) | Guia completo de bootstrap do zero (Day 0) e expansão para novos servidores e racks (Day 2). |
+| [`incus-auth-and-authorization.md`](incus-auth-and-authorization.md) | Detalhamento técnico dos fluxos CLI (Device Code) vs Web UI (PKCE) e autorização ReBAC via OpenFGA. |
+| [`fluxo-incus-auth-fga.html`](fluxo-incus-auth-fga.html) | Página HTML standalone com os três diagramas de sequência de AuthN e AuthZ do Incus e OpenFGA. |
