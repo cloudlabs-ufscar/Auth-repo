@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Fluxo Zero-Trust: GitHub Actions OIDC + OpenBao HA</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-color: #0d1117;
+      --card-bg: #161b22;
+      --border-color: #30363d;
+      --text-main: #c9d1d9;
+      --text-bright: #f0f6fc;
+      --accent: #58a6ff;
+      --accent-green: #3fb950;
+      --accent-purple: #bc8cff;
+      --accent-gold: #f2cc60;
+    }
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      font-family: 'Inter', sans-serif;
+      margin: 0;
+      padding: 30px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .container {
+      max-width: 1200px;
+      width: 100%;
+    }
+    header {
+      margin-bottom: 30px;
+      text-align: center;
+    }
+    h1 {
+      color: var(--text-bright);
+      font-size: 28px;
+      margin-bottom: 8px;
+    }
+    p.subtitle {
+      color: #8b949e;
+      font-size: 16px;
+      margin: 0;
+    }
+    .card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      margin-bottom: 30px;
+      overflow-x: auto;
+    }
+    .mermaid {
+      display: flex;
+      justify-content: center;
+      min-width: 900px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      margin-bottom: 30px;
+    }
+    .info-box {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .info-box h3 {
+      margin: 0 0 8px 0;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .info-box p {
+      margin: 0;
+      font-size: 14px;
+      color: #8b949e;
+      line-height: 1.5;
+    }
+    code {
+      font-family: 'JetBrains Mono', monospace;
+      background: rgba(110, 118, 129, 0.2);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 13px;
+      color: var(--accent);
+    }
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .badge-blue { background: rgba(56, 139, 253, 0.15); color: var(--accent); }
+    .badge-green { background: rgba(63, 185, 80, 0.15); color: var(--accent-green); }
+    .badge-purple { background: rgba(188, 140, 255, 0.15); color: var(--accent-purple); }
+    .badge-gold { background: rgba(242, 204, 96, 0.15); color: var(--accent-gold); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🔐 Federação Zero-Trust: GitHub Actions OIDC + OpenBao HA</h1>
+      <p class="subtitle">Troca dinâmica de JWT efêmero por token de menor privilégio para leitura de segredos sem credenciais estáticas</p>
+    </header>
+
+    <div class="grid">
+      <div class="info-box">
+        <h3><span class="badge badge-blue">Fase 1</span> Emissão do JWT</h3>
+        <p>O GitHub Actions gera um token OIDC assinado contendo as claims do repositório, branch e commit via <code>id-token: write</code>.</p>
+      </div>
+      <div class="info-box">
+        <h3><span class="badge badge-purple">Fase 2</span> Egress Proxy</h3>
+        <p>O OpenBao, isolado na rede interna <code>.maas</code>, usa o <code>tinyproxy</code> no IAM para baixar as chaves públicas (JWKS) do GitHub.</p>
+      </div>
+      <div class="info-box">
+        <h3><span class="badge badge-green">Fase 3</span> Token Scoped</h3>
+        <p>O OpenBao valida as claims e emite um client token temporário (TTL: 15m) vinculado estritamente à política <code>iam-reader</code>.</p>
+      </div>
+      <div class="info-box">
+        <h3><span class="badge badge-gold">Fase 4</span> Leitura de Segredos</h3>
+        <p>A automação faz consultas <code>GET</code> aos segredos em <code>secret/data/iam/*</code> e atualiza a stack do Keycloak e OpenFGA.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Dev as 👤 Desenvolvedor
+    participant GHA as ⚙️ GitHub Runner (Deploy Job)
+    participant GHOIDC as 🐙 GitHub OIDC (token.actions)
+    participant PROXY as 🛡️ Tinyproxy (idp.maas:8888)
+    participant BAO as 🗝️ OpenBao HA (:8200)
+    participant KV as 📦 OpenBao KV-v2 (secret/iam/*)
+
+    Dev->>GHA: git push origin main
+    Note over GHA: Job inicia com permission: "id-token: write"
+    
+    rect rgb(22, 27, 34)
+        Note over GHA,GHOIDC: FASE 1: Emissão do JWT pelo GitHub Actions
+        GHA->>GHOIDC: GET $ACTIONS_ID_TOKEN_REQUEST_URL (Bearer Token da Action)
+        GHOIDC-->>GHA: Retorna OIDC JWT Token (assinado com chave RSA privada do GitHub)
+    end
+
+    rect rgb(22, 27, 34)
+        Note over GHA,PROXY: FASE 2: Troca do JWT por Token do OpenBao
+        GHA->>BAO: POST /v1/auth/jwt/login {"role": "github-actions", "jwt": "..."}
+        
+        Note over BAO,PROXY: OpenBao consulta chaves públicas via Egress Proxy
+        BAO->>PROXY: CONNECT token.actions.githubusercontent.com:443
+        PROXY->>GHOIDC: GET /.well-known/jwks
+        GHOIDC-->>PROXY: Retorna JWKS (chaves públicas RSA)
+        PROXY-->>BAO: Encaminha chaves públicas
+        
+        Note over BAO: Valida assinatura, claims (repository="cloudlabs-ufscar/*") e exp
+        BAO-->>GHA: Retorna OpenBao Client Token (TTL: 15m, policy: "iam-reader")
+    end
+
+    rect rgb(22, 27, 34)
+        Note over GHA,KV: FASE 3: Leitura Segura de Segredos e Deploy
+        GHA->>BAO: GET /v1/secret/data/iam/database (Header: X-Vault-Token)
+        BAO->>KV: Recupera segredos encriptados no Raft Storage
+        KV-->>BAO: Retorna credenciais do PostgreSQL
+        BAO-->>GHA: HTTP 200 {"data": {"data": {"keycloak_db_password": "..."}}}
+        
+        GHA->>BAO: GET /v1/secret/data/iam/keycloak (Header: X-Vault-Token)
+        BAO-->>GHA: HTTP 200 {"data": {"data": {"admin_password": "..."}}}
+        
+        Note over GHA: Ansible aplica templates e sobe containers
+        Note over GHA: Token expira automaticamente em 15 minutos (Zero-Trust)
+    end
+      </div>
+    </div>
+  </div>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      themeVariables: {
+        darkMode: true,
+        background: '#161b22',
+        primaryColor: '#1f6feb',
+        primaryTextColor: '#f0f6fc',
+        primaryBorderColor: '#388bfd',
+        lineColor: '#58a6ff',
+        secondaryColor: '#238636',
+        tertiaryColor: '#161b22',
+        fontFamily: 'Inter, sans-serif',
+        fontSize: '13px'
+      }
+    });
+  </script>
+</body>
+</html>

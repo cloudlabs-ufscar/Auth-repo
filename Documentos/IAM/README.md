@@ -52,6 +52,12 @@ A documentação está dividida em 5 módulos estruturados:
    * Detalhamento requisição a requisição: fases 1 a 4, 19 passos HTTP com payloads, query params, tokens e cookies.
    * [**Versão Interativa (.html)**](fluxo-autenticacao.html): Diagrama Mermaid standalone para visualização direta no navegador (com renderizador automático, dark mode e zoom).
 
+8. [**Federação Zero-Trust: GitHub Actions OIDC + OpenBao HA**](github-oidc-openbao-flow.md)
+   * Autenticação sem segredos estáticos via token JWT efêmero emitido pelo GitHub Actions.
+   * Resolução de JWKS pelo OpenBao via Egress Proxy (Tinyproxy em `idp.maas:8888`).
+   * Validação de claims do repositório (`cloudlabs-ufscar/*`) e emissão de token com política `iam-reader`.
+   * [**Versão Interativa (.html)**](fluxo-github-oidc-openbao.html): Diagrama sequencial visual com resumo das 4 fases.
+
 ---
 
 ## 🏗️ Visão Geral da Arquitetura
@@ -141,3 +147,5 @@ flowchart TD
 | [`github-federation-and-onboarding.md`](github-federation-and-onboarding.md) | Documentação completa do fluxo de onboarding com validação de org GitHub e SPI. |
 | [`fluxo-autenticacao.md`](fluxo-autenticacao.md) | Detalhamento técnico requisição a requisição com tabelas e diagrama Mermaid. |
 | [`fluxo-autenticacao.html`](fluxo-autenticacao.html) | Página HTML standalone com Mermaid interativo (dark theme, pan/zoom) para visualização offline. |
+| [`github-oidc-openbao-flow.md`](github-oidc-openbao-flow.md) | Documentação completa do fluxo Zero-Trust GitHub Actions OIDC para leitura de segredos no OpenBao. |
+| [`fluxo-github-oidc-openbao.html`](fluxo-github-oidc-openbao.html) | Diagrama sequencial interativo HTML da autenticação OIDC e troca de tokens do OpenBao. |

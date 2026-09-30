@@ -33,6 +33,8 @@ Repositório central de **Infraestrutura como Código (IaC)**, automação Ansib
 │   │   ├── github-federation-and-onboarding.md
 │   │   ├── fluxo-autenticacao.md   # Passo a passo técnico requisição por requisição
 │   │   ├── fluxo-autenticacao.html # Diagrama sequencial interativo (Mermaid standalone)
+│   │   ├── github-oidc-openbao-flow.md   # Federação Zero-Trust GitHub OIDC + OpenBao
+│   │   ├── fluxo-github-oidc-openbao.html # Diagrama sequencial interativo OIDC + OpenBao
 │   │   ├── cicd-and-deployment.md
 │   │   └── troubleshooting-and-postmortems.md
 │   ├── Politicas/                  # Políticas internas de segurança, DNS, VPN e CA
@@ -52,9 +54,11 @@ Para detalhes aprofundados sobre arquitetura, fluxos e segurança, consulte:
 1. [**Índice Geral de IAM**](Documentos/IAM/README.md)
 2. [**Visão Geral da Arquitetura**](Documentos/IAM/architecture-overview.md)
 3. [**Gestão de Segredos & PKI no OpenBao**](Documentos/IAM/openbao-secrets-management.md)
-4. [**Federação GitHub & Onboarding Híbrido**](Documentos/IAM/github-federation-and-onboarding.md)
-5. [**Diagrama Interativo do Fluxo de Autenticação (.html)**](Documentos/IAM/fluxo-autenticacao.html) *(abra diretamente no navegador)*
-6. [**Troubleshooting e Postmortems de Produção**](Documentos/IAM/troubleshooting-and-postmortems.md)
+4. [**Federação Zero-Trust: GitHub Actions OIDC + OpenBao**](Documentos/IAM/github-oidc-openbao-flow.md)
+5. [**Federação GitHub & Onboarding Híbrido**](Documentos/IAM/github-federation-and-onboarding.md)
+6. [**Diagrama Interativo do Fluxo de Autenticação (.html)**](Documentos/IAM/fluxo-autenticacao.html) *(abra diretamente no navegador)*
+7. [**Diagrama Interativo do Fluxo OIDC OpenBao (.html)**](Documentos/IAM/fluxo-github-oidc-openbao.html) *(abra diretamente no navegador)*
+8. [**Troubleshooting e Postmortems de Produção**](Documentos/IAM/troubleshooting-and-postmortems.md)
 
 ---
 
