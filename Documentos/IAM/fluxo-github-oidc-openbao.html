@@ -116,20 +116,20 @@
 
     <div class="grid">
       <div class="info-box">
-        <h3><span class="badge badge-blue">Fase 1</span> Emissão do JWT</h3>
+        <h3><span class="badge badge-blue">Fase 1</span> JWT na Nuvem</h3>
         <p>O GitHub Actions gera um token OIDC assinado contendo as claims do repositório, branch e commit via <code>id-token: write</code>.</p>
       </div>
       <div class="info-box">
-        <h3><span class="badge badge-purple">Fase 2</span> Egress Proxy</h3>
-        <p>O OpenBao, isolado na rede interna <code>.maas</code>, usa o <code>tinyproxy</code> no IAM para baixar as chaves públicas (JWKS) do GitHub.</p>
+        <h3><span class="badge badge-purple">Fase 2</span> Injeção via SSH</h3>
+        <p>O Runner conecta por SSH no nó público (<code>200.18.99.87</code>) e passa o JWT. O OpenBao <b>não é exposto na internet</b>.</p>
       </div>
       <div class="info-box">
-        <h3><span class="badge badge-green">Fase 3</span> Token Scoped</h3>
-        <p>O OpenBao valida as claims e emite um client token temporário (TTL: 15m) vinculado estritamente à política <code>iam-reader</code>.</p>
+        <h3><span class="badge badge-green">Fase 3</span> Validação & JWKS</h3>
+        <p>O OpenBao usa o <code>tinyproxy</code> para buscar as chaves do GitHub e emite um client token temporário (TTL: 15m, <code>iam-reader</code>).</p>
       </div>
       <div class="info-box">
-        <h3><span class="badge badge-gold">Fase 4</span> Leitura de Segredos</h3>
-        <p>A automação faz consultas <code>GET</code> aos segredos em <code>secret/data/iam/*</code> e atualiza a stack do Keycloak e OpenFGA.</p>
+        <h3><span class="badge badge-gold">Fase 4</span> Leitura Local</h3>
+        <p>O script Ansible local lê <code>secret/data/iam/*</code> diretamente na rede privada <code>.maas</code> e provisiona a stack.</p>
       </div>
     </div>
 
@@ -138,24 +138,32 @@
 sequenceDiagram
     autonumber
     actor Dev as 👤 Desenvolvedor
-    participant GHA as ⚙️ GitHub Runner (Deploy Job)
-    participant GHOIDC as 🐙 GitHub OIDC (token.actions)
-    participant PROXY as 🛡️ Tinyproxy (idp.maas:8888)
-    participant BAO as 🗝️ OpenBao HA (:8200)
-    participant KV as 📦 OpenBao KV-v2 (secret/iam/*)
+    box rgb(13, 17, 23) "Nuvem Pública (GitHub Cloud)"
+        participant GHA as ☁️ GitHub Actions Runner
+        participant GHOIDC as 🐙 GitHub OIDC (token.actions)
+    end
+    box rgb(22, 27, 34) "Borda & Datacenter Local (Rede Privada .maas)"
+        participant SSH as 🖥️ Host Alvo / Bastion (SSH :200.18.99.87)
+        participant PROXY as 🛡️ Tinyproxy (idp.maas:8888)
+        participant BAO as 🗝️ OpenBao HA (vault.maas:8200)
+        participant KV as 📦 OpenBao KV-v2 (secret/iam/*)
+    end
 
     Dev->>GHA: git push origin main
     Note over GHA: Job inicia com permission: "id-token: write"
     
-    rect rgb(22, 27, 34)
-        Note over GHA,GHOIDC: FASE 1: Emissão do JWT pelo GitHub Actions
+    rect rgb(30, 40, 55)
+        Note over GHA,GHOIDC: FASE 1: Emissão do JWT na Nuvem
         GHA->>GHOIDC: GET $ACTIONS_ID_TOKEN_REQUEST_URL (Bearer Token da Action)
-        GHOIDC-->>GHA: Retorna OIDC JWT Token (assinado com chave RSA privada do GitHub)
+        GHOIDC-->>GHA: Retorna OIDC JWT Token (assinado com chave RSA do GitHub)
     end
 
-    rect rgb(22, 27, 34)
-        Note over GHA,PROXY: FASE 2: Troca do JWT por Token do OpenBao
-        GHA->>BAO: POST /v1/auth/jwt/login {"role": "github-actions", "jwt": "..."}
+    rect rgb(20, 45, 35)
+        Note over GHA,SSH: FASE 2: Conexão SSH e Injeção do JWT no Datacenter
+        GHA->>SSH: Conexão SSH (appleboy/ssh-action) com env: ACTIONS_ID_TOKEN
+        
+        Note over SSH,BAO: FASE 3: Troca do JWT por Token do OpenBao na Rede Local
+        SSH->>BAO: POST http://vault.maas:8200/v1/auth/jwt/login {"role": "github-actions", "jwt": "..."}
         
         Note over BAO,PROXY: OpenBao consulta chaves públicas via Egress Proxy
         BAO->>PROXY: CONNECT token.actions.githubusercontent.com:443
@@ -163,21 +171,22 @@ sequenceDiagram
         GHOIDC-->>PROXY: Retorna JWKS (chaves públicas RSA)
         PROXY-->>BAO: Encaminha chaves públicas
         
-        Note over BAO: Valida assinatura, claims (repository="cloudlabs-ufscar/*") e exp
-        BAO-->>GHA: Retorna OpenBao Client Token (TTL: 15m, policy: "iam-reader")
+        Note over BAO: Valida assinatura, claims (repository="cloudlabs-ufscar/*") e TTL
+        BAO-->>SSH: Retorna OpenBao Client Token (TTL: 15m, policy: "iam-reader")
     end
 
-    rect rgb(22, 27, 34)
-        Note over GHA,KV: FASE 3: Leitura Segura de Segredos e Deploy
-        GHA->>BAO: GET /v1/secret/data/iam/database (Header: X-Vault-Token)
+    rect rgb(30, 45, 55)
+        Note over SSH,KV: FASE 4: Leitura de Segredos e Deploy no Host
+        SSH->>BAO: GET /v1/secret/data/iam/database (Header: X-Vault-Token)
         BAO->>KV: Recupera segredos encriptados no Raft Storage
         KV-->>BAO: Retorna credenciais do PostgreSQL
-        BAO-->>GHA: HTTP 200 {"data": {"data": {"keycloak_db_password": "..."}}}
+        BAO-->>SSH: HTTP 200 {"data": {"data": {"keycloak_db_password": "..."}}}
         
-        GHA->>BAO: GET /v1/secret/data/iam/keycloak (Header: X-Vault-Token)
-        BAO-->>GHA: HTTP 200 {"data": {"data": {"admin_password": "..."}}}
+        SSH->>BAO: GET /v1/secret/data/iam/keycloak (Header: X-Vault-Token)
+        BAO-->>SSH: HTTP 200 {"data": {"data": {"admin_password": "..."}}}
         
-        Note over GHA: Ansible aplica templates e sobe containers
+        Note over SSH: Ansible renderiza templates e atualiza containers
+        SSH-->>GHA: Deploy concluído com sucesso via SSH
         Note over GHA: Token expira automaticamente em 15 minutos (Zero-Trust)
     end
       </div>

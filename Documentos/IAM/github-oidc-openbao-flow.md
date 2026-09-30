@@ -21,30 +21,42 @@ Com a Federação OIDC:
 
 ---
 
-## 2. Diagrama de Sequência Completo
+## 2. Diagrama de Sequência Completo (Topologia de Rede Real)
+
+> [!IMPORTANT]
+> **Isolamento de Rede:** O cluster OpenBao (`vault.maas`) **não possui IP público nem portas abertas para a internet**. Ele reside na rede privada interna (`.maas`).
+> O GitHub Actions **não faz requisições HTTP diretas** ao OpenBao pela internet. Em vez disso, o Runner obtém o JWT na nuvem do GitHub e o encaminha através da conexão **SSH** para o host do laboratório (`200.18.99.87`), onde o script local realiza as chamadas ao OpenBao pela rede interna.
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor Dev as 👤 Desenvolvedor
-    participant GHA as ⚙️ GitHub Runner (Job CI/CD)
-    participant GHOIDC as 🐙 GitHub OIDC (token.actions)
-    participant PROXY as 🛡️ Tinyproxy (idp.maas:8888)
-    participant BAO as 🗝️ OpenBao HA (:8200)
-    participant KV as 📦 OpenBao KV-v2 (secret/iam/*)
+    box rgb(30, 40, 55) "Nuvem Pública (GitHub Cloud)"
+        participant GHA as ☁️ GitHub Actions Runner
+        participant GHOIDC as 🐙 GitHub OIDC (token.actions)
+    end
+    box rgb(20, 50, 40) "Borda & Datacenter Local (Rede Privada .maas)"
+        participant SSH as 🖥️ Host Alvo / Bastion (SSH :200.18.99.87)
+        participant PROXY as 🛡️ Tinyproxy (idp.maas:8888)
+        participant BAO as 🗝️ OpenBao HA (vault.maas:8200)
+        participant KV as 📦 OpenBao KV-v2 (secret/iam/*)
+    end
 
     Dev->>GHA: git push origin main
     Note over GHA: Job inicia com permission: "id-token: write"
     
-    rect rgb(240, 248, 255)
-        Note over GHA,GHOIDC: FASE 1: Emissão do JWT pelo GitHub Actions
+    rect rgb(35, 45, 60)
+        Note over GHA,GHOIDC: FASE 1: Emissão do JWT na Nuvem
         GHA->>GHOIDC: GET $ACTIONS_ID_TOKEN_REQUEST_URL (Bearer Token da Action)
-        GHOIDC-->>GHA: Retorna OIDC JWT Token (assinado com chave privada do GitHub)
+        GHOIDC-->>GHA: Retorna OIDC JWT Token (assinado com chave RSA do GitHub)
     end
 
-    rect rgb(245, 255, 245)
-        Note over GHA,PROXY: FASE 2: Troca do JWT por Token do OpenBao
-        GHA->>BAO: POST /v1/auth/jwt/login {"role": "github-actions", "jwt": "..."}
+    rect rgb(25, 55, 45)
+        Note over GHA,SSH: FASE 2: Conexão SSH e Injeção do JWT no Datacenter
+        GHA->>SSH: Conexão SSH (appleboy/ssh-action) com env: ACTIONS_ID_TOKEN
+        
+        Note over SSH,BAO: FASE 3: Troca do JWT por Token do OpenBao na Rede Local
+        SSH->>BAO: POST http://vault.maas:8200/v1/auth/jwt/login {"role": "github-actions", "jwt": "..."}
         
         Note over BAO,PROXY: OpenBao consulta chaves públicas via Egress Proxy
         BAO->>PROXY: CONNECT token.actions.githubusercontent.com:443
@@ -53,21 +65,22 @@ sequenceDiagram
         PROXY-->>BAO: Encaminha chaves públicas
         
         Note over BAO: Valida assinatura, claims (repository="cloudlabs-ufscar/*") e TTL
-        BAO-->>GHA: Retorna OpenBao Client Token (TTL: 15m, policy: "iam-reader")
+        BAO-->>SSH: Retorna OpenBao Client Token (TTL: 15m, policy: "iam-reader")
     end
 
-    rect rgb(255, 250, 240)
-        Note over GHA,KV: FASE 3: Leitura Segura de Segredos e Deploy
-        GHA->>BAO: GET /v1/secret/data/iam/database (Header: X-Vault-Token)
+    rect rgb(30, 50, 60)
+        Note over SSH,KV: FASE 4: Leitura de Segredos e Deploy no Host
+        SSH->>BAO: GET /v1/secret/data/iam/database (Header: X-Vault-Token)
         BAO->>KV: Recupera segredos encriptados no Raft Storage
         KV-->>BAO: Retorna credenciais do PostgreSQL
-        BAO-->>GHA: HTTP 200 {"data": {"data": {"keycloak_db_password": "..."}}}
+        BAO-->>SSH: HTTP 200 {"data": {"data": {"keycloak_db_password": "..."}}}
         
-        GHA->>BAO: GET /v1/secret/data/iam/keycloak (Header: X-Vault-Token)
-        BAO-->>GHA: HTTP 200 {"data": {"data": {"admin_password": "..."}}}
+        SSH->>BAO: GET /v1/secret/data/iam/keycloak (Header: X-Vault-Token)
+        BAO-->>SSH: HTTP 200 {"data": {"data": {"admin_password": "..."}}}
         
-        Note over GHA: Ansible aplica templates e sobe containers
-        Note over GHA: Token expira automaticamente em 15 minutos
+        Note over SSH: Ansible renderiza templates e atualiza containers
+        SSH-->>GHA: Deploy concluído com sucesso via SSH
+        Note over GHA: Token expira automaticamente em 15 minutos (Zero-Trust)
     end
 ```
 
