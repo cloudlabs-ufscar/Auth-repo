@@ -1,0 +1,122 @@
+---
+- name: Configure Egress Proxy on OpenBao Cluster Nodes
+  hosts: vault
+  become: yes
+  tasks:
+    - name: Create systemd drop-in directory for openbao
+      ansible.builtin.file:
+        path: /etc/systemd/system/openbao.service.d
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Deploy proxy configuration drop-in
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/openbao.service.d/proxy.conf
+        content: |
+          [Service]
+          Environment="HTTPS_PROXY=http://idp.maas:8888"
+          Environment="HTTP_PROXY=http://idp.maas:8888"
+          Environment="NO_PROXY=127.0.0.1,localhost,192.168.69.0/24,.maas"
+        owner: root
+        group: root
+        mode: '0644'
+      register: openbao_proxy_conf
+
+    - name: Reload systemd daemon
+      ansible.builtin.systemd:
+        daemon_reload: yes
+      when: openbao_proxy_conf.changed
+
+    - name: Restart openbao service with proxy
+      ansible.builtin.systemd:
+        name: openbao
+        state: restarted
+      when: openbao_proxy_conf.changed
+
+    - name: Ensure auto-unseal runs after restart
+      ansible.builtin.command: /usr/local/bin/openbao-unseal.sh
+      when: openbao_proxy_conf.changed
+
+- name: Configure JWT / OIDC Auth Engine on OpenBao Leader
+  hosts: vault[0]
+  become: yes
+  tasks:
+    - name: Read root token on leader
+      ansible.builtin.slurp:
+        src: /var/lib/openbao/data/root.token
+      register: root_token_b64
+
+    - name: Set root token fact
+      ansible.builtin.set_fact:
+        openbao_root_token: "{{ root_token_b64.content | b64decode | trim }}"
+
+    - name: Check enabled auth methods
+      ansible.builtin.command: /usr/bin/bao auth list -format=json
+      register: auth_list_raw
+      changed_when: false
+      environment:
+        BAO_ADDR: "http://127.0.0.1:8200"
+        BAO_TOKEN: "{{ openbao_root_token }}"
+
+    - name: Enable JWT auth engine if not enabled
+      ansible.builtin.command: /usr/bin/bao auth enable jwt
+      when: "'jwt/' not in (auth_list_raw.stdout | from_json)"
+      environment:
+        BAO_ADDR: "http://127.0.0.1:8200"
+        BAO_TOKEN: "{{ openbao_root_token }}"
+
+    - name: Configure JWT OIDC discovery URL
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:8200/v1/auth/jwt/config"
+        method: POST
+        headers:
+          X-Vault-Token: "{{ openbao_root_token }}"
+        body_format: json
+        body:
+          oidc_discovery_url: "https://token.actions.githubusercontent.com"
+        status_code: [200, 204]
+
+    - name: Configure GitHub Actions OIDC role
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:8200/v1/auth/jwt/role/github-actions"
+        method: POST
+        headers:
+          X-Vault-Token: "{{ openbao_root_token }}"
+        body_format: json
+        body:
+          role_type: "jwt"
+          user_claim: "actor"
+          bound_issuer: "https://token.actions.githubusercontent.com"
+          bound_claims_type: "glob"
+          bound_claims:
+            repository: "cloudlabs-ufscar/*"
+          policies:
+            - "iam-reader"
+          ttl: "15m"
+        status_code: [200, 204]
+
+    - name: Verify JWT OIDC configuration
+      ansible.builtin.command: /usr/bin/bao read auth/jwt/config
+      register: jwt_config_check
+      changed_when: false
+      environment:
+        BAO_ADDR: "http://127.0.0.1:8200"
+        BAO_TOKEN: "{{ openbao_root_token }}"
+
+    - name: Verify GitHub Actions role configuration
+      ansible.builtin.command: /usr/bin/bao read auth/jwt/role/github-actions
+      register: role_config_check
+      changed_when: false
+      environment:
+        BAO_ADDR: "http://127.0.0.1:8200"
+        BAO_TOKEN: "{{ openbao_root_token }}"
+
+    - name: Display OIDC Config Status
+      ansible.builtin.debug:
+        var: jwt_config_check.stdout_lines
+
+    - name: Display GitHub Actions Role Status
+      ansible.builtin.debug:
+        var: role_config_check.stdout_lines

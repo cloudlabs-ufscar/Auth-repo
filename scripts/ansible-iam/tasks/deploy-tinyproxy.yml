@@ -1,0 +1,6 @@
+---
+- name: Deploy Egress Tinyproxy on IAM Server
+  hosts: iam
+  become: yes
+  roles:
+    - tinyproxy

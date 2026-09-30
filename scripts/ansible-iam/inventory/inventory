@@ -3,3 +3,5 @@
 
 [vault]
 vault.maas ansible_user=ubuntu
+vault2.maas ansible_user=ubuntu
+vault3.maas ansible_user=ubuntu

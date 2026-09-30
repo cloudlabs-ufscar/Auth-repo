@@ -1,0 +1,30 @@
+# Tinyproxy configuration managed by Ansible
+User tinyproxy
+Group tinyproxy
+Port {{ tinyproxy_port }}
+{% if tinyproxy_listen | default('') | length > 0 %}
+Listen {{ tinyproxy_listen }}
+{% endif %}
+Timeout 600
+DefaultErrorFile "/usr/share/tinyproxy/default.html"
+StatFile "/usr/share/tinyproxy/stats.html"
+LogFile "/var/log/tinyproxy/tinyproxy.log"
+LogLevel Info
+PidFile "/run/tinyproxy/tinyproxy.pid"
+MaxClients 100
+MinSpareServers 5
+MaxSpareServers 20
+StartServers 10
+MaxRequestsPerChild 0
+
+{% for client in tinyproxy_allowed_clients %}
+Allow {{ client }}
+{% endfor %}
+
+ConnectPort 443
+ConnectPort 80
+
+Filter "/etc/tinyproxy/filter"
+FilterURLs Yes
+FilterCaseSensitive No
+FilterDefaultDeny Yes

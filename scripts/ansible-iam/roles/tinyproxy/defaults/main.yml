@@ -1,0 +1,11 @@
+---
+tinyproxy_port: 8888
+tinyproxy_listen: ""
+tinyproxy_allowed_clients:
+  - "127.0.0.1"
+  - "::1"
+  - "vault.maas"
+  - "vault2.maas"
+  - "vault3.maas"
+tinyproxy_allowed_domains:
+  - "token\\.actions\\.githubusercontent\\.com"

@@ -1,0 +1,6 @@
+# Tinyproxy domain whitelist managed by Ansible
+# Only allowed domains when FilterDefaultDeny is Yes
+
+{% for domain in tinyproxy_allowed_domains %}
+{{ domain }}
+{% endfor %}

@@ -103,31 +103,80 @@
     openbao_initialized: "{{ (openbao_status_raw.stdout | from_json).initialized | default(false) }}"
   when: openbao_status_raw.stdout | length > 0
 
-- name: Initialize OpenBao operator (1 share, threshold 1)
+# Primary node initialization (only on groups['vault'][0])
+- name: Initialize OpenBao operator (1 share, threshold 1) on primary node
   ansible.builtin.command: /usr/bin/bao operator init -key-shares=1 -key-threshold=1 -format=json
   register: openbao_init_output
   environment:
     BAO_ADDR: "http://127.0.0.1:8200"
-  when: not (openbao_initialized | default(false))
+  when:
+    - inventory_hostname == groups['vault'][0]
+    - not (openbao_initialized | default(false))
 
-- name: Save unseal key securely
+- name: Save unseal key on primary node
   ansible.builtin.copy:
     content: "{{ (openbao_init_output.stdout | from_json).unseal_keys_b64[0] }}"
     dest: "{{ openbao_dir_data }}/unseal.key"
     owner: root
     group: root
     mode: "0400"
-  when: openbao_init_output is changed
+  when:
+    - inventory_hostname == groups['vault'][0]
+    - openbao_init_output is changed
 
-- name: Save root token securely
+- name: Save root token on primary node
   ansible.builtin.copy:
     content: "{{ (openbao_init_output.stdout | from_json).root_token }}"
     dest: "{{ openbao_dir_data }}/root.token"
     owner: root
     group: root
     mode: "0400"
-  when: openbao_init_output is changed
+  when:
+    - inventory_hostname == groups['vault'][0]
+    - openbao_init_output is changed
 
+# Follower nodes joining Raft cluster (for nodes other than primary)
+- name: Join Raft cluster from follower nodes
+  ansible.builtin.command: /usr/bin/bao operator raft join http://{{ groups['vault'][0] }}:8200
+  register: raft_join_output
+  environment:
+    BAO_ADDR: "http://127.0.0.1:8200"
+  when:
+    - inventory_hostname != groups['vault'][0]
+    - not (openbao_initialized | default(false))
+
+# Distribute unseal key and root token from primary node to all nodes
+- name: Read unseal key from primary vault node
+  ansible.builtin.slurp:
+    src: "{{ openbao_dir_data }}/unseal.key"
+  register: primary_unseal_key_b64
+  delegate_to: "{{ groups['vault'][0] }}"
+  run_once: yes
+
+- name: Distribute unseal key to all vault nodes
+  ansible.builtin.copy:
+    content: "{{ primary_unseal_key_b64.content | b64decode }}"
+    dest: "{{ openbao_dir_data }}/unseal.key"
+    owner: root
+    group: root
+    mode: "0400"
+
+- name: Read root token from primary vault node
+  ansible.builtin.slurp:
+    src: "{{ openbao_dir_data }}/root.token"
+  register: primary_root_token_b64
+  delegate_to: "{{ groups['vault'][0] }}"
+  run_once: yes
+
+- name: Distribute root token to all vault nodes
+  ansible.builtin.copy:
+    content: "{{ primary_root_token_b64.content | b64decode }}"
+    dest: "{{ openbao_dir_data }}/root.token"
+    owner: root
+    group: root
+    mode: "0400"
+
+# Auto-unseal setup on all nodes
 - name: Deploy auto-unseal script
   ansible.builtin.template:
     src: openbao-unseal.sh.j2
@@ -157,14 +206,30 @@
   ansible.builtin.command: /usr/local/bin/openbao-unseal.sh
   changed_when: false
 
-- name: Verify OpenBao cluster status
+- name: Verify OpenBao status on each node
   ansible.builtin.command: /usr/bin/bao status
-  register: openbao_final_status
+  register: openbao_node_status
   changed_when: false
   environment:
     BAO_ADDR: "http://127.0.0.1:8200"
 
-- name: Display OpenBao status
+- name: Display OpenBao node status
   ansible.builtin.debug:
-    var: openbao_final_status.stdout_lines
+    var: openbao_node_status.stdout_lines
+
+- name: Check Raft cluster peers from primary node
+  ansible.builtin.command: /usr/bin/bao operator raft list-peers -format=json
+  register: openbao_raft_peers_raw
+  changed_when: false
+  delegate_to: "{{ groups['vault'][0] }}"
+  run_once: yes
+  environment:
+    BAO_ADDR: "http://127.0.0.1:8200"
+    BAO_TOKEN: "{{ primary_root_token_b64.content | b64decode }}"
+
+- name: Display Raft cluster peers
+  ansible.builtin.debug:
+    msg: "{{ (openbao_raft_peers_raw.stdout | from_json).data.config.servers }}"
+  run_once: yes
+
 
