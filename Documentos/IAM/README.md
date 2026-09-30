@@ -69,6 +69,12 @@ A documentação está dividida em 5 módulos estruturados:
    * Sincronização automática de grupos do Keycloak para o OpenFGA via plugin SPI (`keycloak-openfga-event-publisher`).
    * [**Versão Interativa (.html)**](fluxo-incus-auth-fga.html): Três diagramas sequenciais completos com dark theme e visualização direta.
 
+11. [**Plugin SPI: `keycloak-openfga-event-publisher`**](plugin-keycloak-openfga-event-publisher.md)
+   * Arquitetura interna do plugin Java 17 baseado no `dev.openfga:openfga-sdk:0.5.0`.
+   * Interceptação orientada a eventos (`GROUP_MEMBERSHIP_CREATE` e `DELETE`) com tradução para chamadas de tuplas ReBAC.
+   * Eliminação de tuplas órfãs e sincronização em tempo real entre Keycloak e OpenFGA.
+   * Guia de configuração (`KC_SPI_EVENTS_LISTENER_*`) e diagnóstico de logs em produção.
+
 ---
 
 ## 🏗️ Visão Geral da Arquitetura
@@ -163,3 +169,4 @@ flowchart TD
 | [`ansible-bootstrap-and-scaleout.md`](ansible-bootstrap-and-scaleout.md) | Guia completo de bootstrap do zero (Day 0) e expansão para novos servidores e racks (Day 2). |
 | [`incus-auth-and-authorization.md`](incus-auth-and-authorization.md) | Detalhamento técnico dos fluxos CLI (Device Code) vs Web UI (PKCE) e autorização ReBAC via OpenFGA. |
 | [`fluxo-incus-auth-fga.html`](fluxo-incus-auth-fga.html) | Página HTML standalone com os três diagramas de sequência de AuthN e AuthZ do Incus e OpenFGA. |
+| [`plugin-keycloak-openfga-event-publisher.md`](plugin-keycloak-openfga-event-publisher.md) | Documentação completa da extensão SPI Java 17 que sincroniza em tempo real grupos do Keycloak com o OpenFGA. |

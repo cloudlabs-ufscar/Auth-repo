@@ -38,6 +38,7 @@ Repositório central de **Infraestrutura como Código (IaC)**, automação Ansib
 │   │   ├── ansible-bootstrap-and-scaleout.md # Setup inicial (Day 0) e expansão de nós/racks (Day 2)
 │   │   ├── incus-auth-and-authorization.md   # Autenticação CLI vs Web UI & OpenFGA ReBAC
 │   │   ├── fluxo-incus-auth-fga.html         # Diagrama interativo de AuthN/AuthZ no Incus
+│   │   ├── plugin-keycloak-openfga-event-publisher.md # Plugin SPI de sincronização Keycloak -> OpenFGA
 │   │   ├── cicd-and-deployment.md
 │   │   └── troubleshooting-and-postmortems.md
 │   ├── Politicas/                  # Políticas internas de segurança, DNS, VPN e CA
@@ -57,14 +58,15 @@ Para detalhes aprofundados sobre arquitetura, fluxos e segurança, consulte:
 1. [**Índice Geral de IAM**](Documentos/IAM/README.md)
 2. [**Visão Geral da Arquitetura**](Documentos/IAM/architecture-overview.md)
 3. [**Autenticação e Autorização no Incus (CLI vs Web UI & OpenFGA ReBAC)**](Documentos/IAM/incus-auth-and-authorization.md)
-4. [**Gestão de Segredos & PKI no OpenBao**](Documentos/IAM/openbao-secrets-management.md)
-5. [**Federação Zero-Trust: GitHub Actions OIDC + OpenBao**](Documentos/IAM/github-oidc-openbao-flow.md)
-6. [**Bootstrap Ansible (Day 0) e Expansão de Servidores / Racks (Day 2)**](Documentos/IAM/ansible-bootstrap-and-scaleout.md)
-7. [**Federação GitHub & Onboarding Híbrido**](Documentos/IAM/github-federation-and-onboarding.md)
-8. [**Diagrama Interativo do Fluxo de Autenticação (.html)**](Documentos/IAM/fluxo-autenticacao.html) *(abra diretamente no navegador)*
-9. [**Diagrama Interativo de AuthN/AuthZ Incus + FGA (.html)**](Documentos/IAM/fluxo-incus-auth-fga.html) *(abra diretamente no navegador)*
-10. [**Diagrama Interativo do Fluxo OIDC OpenBao (.html)**](Documentos/IAM/fluxo-github-oidc-openbao.html) *(abra diretamente no navegador)*
-11. [**Troubleshooting e Postmortems de Produção**](Documentos/IAM/troubleshooting-and-postmortems.md)
+4. [**Plugin SPI Keycloak-OpenFGA Event Publisher**](Documentos/IAM/plugin-keycloak-openfga-event-publisher.md)
+5. [**Gestão de Segredos & PKI no OpenBao**](Documentos/IAM/openbao-secrets-management.md)
+6. [**Federação Zero-Trust: GitHub Actions OIDC + OpenBao**](Documentos/IAM/github-oidc-openbao-flow.md)
+7. [**Bootstrap Ansible (Day 0) e Expansão de Servidores / Racks (Day 2)**](Documentos/IAM/ansible-bootstrap-and-scaleout.md)
+8. [**Federação GitHub & Onboarding Híbrido**](Documentos/IAM/github-federation-and-onboarding.md)
+9. [**Diagrama Interativo do Fluxo de Autenticação (.html)**](Documentos/IAM/fluxo-autenticacao.html) *(abra diretamente no navegador)*
+10. [**Diagrama Interativo de AuthN/AuthZ Incus + FGA (.html)**](Documentos/IAM/fluxo-incus-auth-fga.html) *(abra diretamente no navegador)*
+11. [**Diagrama Interativo do Fluxo OIDC OpenBao (.html)**](Documentos/IAM/fluxo-github-oidc-openbao.html) *(abra diretamente no navegador)*
+12. [**Troubleshooting e Postmortems de Produção**](Documentos/IAM/troubleshooting-and-postmortems.md)
 
 ---
 
