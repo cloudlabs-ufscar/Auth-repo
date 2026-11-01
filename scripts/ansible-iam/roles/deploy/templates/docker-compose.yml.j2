@@ -18,7 +18,7 @@ services:
         condition: service_healthy
 
   postgres-keycloak:
-    image: postgres:14
+    image: postgres:16
     restart: unless-stopped
     container_name: postgres-keycloak
     environment:
@@ -30,14 +30,12 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_keycloak_data:/var/lib/postgresql/data
 
 
   postgres-openfga:
-    image: postgres:14
+    image: postgres:16
     restart: unless-stopped
     container_name: postgres-openfga
     command: postgres -c 'max_connections=100'
@@ -49,8 +47,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-    ports:
-      - "5433:5432"
     volumes:
       - postgres_openfga_data:/var/lib/postgresql/data
 
@@ -127,5 +123,9 @@ services:
       openfga:
         condition: service_healthy
 volumes:
+  # migração PG14→16 (2026-11-01): dados restaurados em volumes novos.
+  # Volumes antigos (iam_postgres_*_data) preservados para rollback.
   postgres_keycloak_data:
+    name: iam_postgres_keycloak_data_pg16
   postgres_openfga_data:
+    name: iam_postgres_openfga_data_pg16
