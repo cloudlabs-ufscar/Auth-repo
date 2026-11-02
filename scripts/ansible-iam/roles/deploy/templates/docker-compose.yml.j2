@@ -51,7 +51,7 @@ services:
       - postgres_openfga_data:/var/lib/postgresql/data
 
   migrate:
-    image: openfga/openfga:v1.5.5
+    image: openfga/openfga:v1.22.1
     container_name: migrate
     environment:
       - OPENFGA_DATASTORE_ENGINE=postgres
@@ -62,7 +62,7 @@ services:
         condition: service_healthy
 
   openfga:
-    image: openfga/openfga:v1.5.5
+    image: openfga/openfga:v1.22.1
     restart: unless-stopped
     container_name: openfga
     command: run
@@ -85,32 +85,34 @@ services:
         condition: service_completed_successfully
 
   keycloak:
-    image: quay.io/keycloak/keycloak:25.0.1
+    image: quay.io/keycloak/keycloak:26.8.1
     restart: unless-stopped
     container_name: keycloak
     command:
-      - start-dev
+      - start
       - --import-realm
     environment:
-      KEYCLOAK_ADMIN: "{{ keycloak_admin_user | default('admin') }}"
-      KEYCLOAK_ADMIN_PASSWORD: "{{ keycloak_admin_password | default('password!!!!') }}"
+      # Keycloak 26: KEYCLOAK_ADMIN* foi removido. O bootstrap so vale quando o
+      # banco ainda nao tem admin; num banco existente NAO troca a senha.
+      KC_BOOTSTRAP_ADMIN_USERNAME: "{{ keycloak_admin_user | default('admin') }}"
+      KC_BOOTSTRAP_ADMIN_PASSWORD: "{{ keycloak_admin_password | default('password!!!!') }}"
       KC_DB: postgres
       KC_DB_URL_HOST: postgres-keycloak
       KC_DB_URL_DATABASE: "{{ postgres_keycloak_db | default('keycloak') }}"
       KC_DB_SCHEMA: public
       KC_DB_USERNAME: "{{ postgres_keycloak_user | default('keycloak') }}"
       KC_DB_PASSWORD: "{{ postgres_keycloak_password | default('password') }}"
-      KC_HOSTNAME: "{{ iam_domain }}"
-      KC_HOSTNAME_PORT: 8443       
-      KC_HOSTNAME_STRICT_HTTPS: "true"
-      KC_HOSTNAME_STRICT: "true"
+      # Keycloak 26 usa hostname v2: URL completa (esquema+porta) no proprio
+      # KC_HOSTNAME. KC_HOSTNAME_PORT e KC_HOSTNAME_STRICT* foram removidos.
+      KC_HOSTNAME: "https://{{ iam_domain }}:8443"
       KC_HTTP_ENABLED: 'true'
       KC_HTTP_HOST: 0.0.0.0
-      KC_PROXY_HEADERS: xforwarded      
-      KC_SPI_EVENTS_LISTENER_OPENFGA_EVENTS_PUBLISHER_API_URL: http://openfga:8080
+      KC_PROXY_HEADERS: xforwarded
+      KC_SPI_EVENTS_LISTENER_OPENFGA_EVENTS_PUBLISHER_OPENFGA_API_URL: http://openfga:8080
       KC_LOG_LEVEL: INFO,com.twogenidentity.keycloak:debug,br.ufscar.dc.cloudlabs:debug
       GITHUB_CLIENT_ID: "{{ github_client_id }}"
       GITHUB_CLIENT_SECRET: "{{ github_client_secret }}"
+      OPENSTACK_CLIENT_SECRET: "{{ openstack_client_secret }}"
     ports:
       - "9080:8080"
     volumes:
