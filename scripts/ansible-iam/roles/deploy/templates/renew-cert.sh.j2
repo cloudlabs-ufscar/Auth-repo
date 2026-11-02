@@ -3,7 +3,7 @@
 DOMAIN="{{ iam_domain }}"
 HAPROXY_PEM="{{ haproxy_pem_path }}"
 OPENBAO_ADDR="http://{{ openbao_leader | default('vault.maas') }}:8200"
-TOKEN_FILE="/opt/iam/.openbao-token"
+APPROLE_FILE="/opt/iam/.openbao-approle"
 
 # 1. Renovação do certificado (a porta 80 deve estar livre)
 /usr/bin/certbot renew --standalone --quiet
@@ -13,25 +13,37 @@ cat /etc/letsencrypt/live/$DOMAIN/fullchain.pem \
     /etc/letsencrypt/live/$DOMAIN/privkey.pem \
     > $HAPROXY_PEM
 
-# 3. Garante permissão legível pelo container HAProxy
-chmod 0644 $HAPROXY_PEM
+# 3. Garante permissão legível pelo container HAProxy (UID/GID 99)
+chown root:99 $HAPROXY_PEM
+chmod 0640 $HAPROXY_PEM
 
-# 4. Sincroniza backup com o OpenBao caso o token de acesso exista
-if [ -f "$TOKEN_FILE" ] && command -v jq >/dev/null 2>&1; then
-    TOKEN=$(cat "$TOKEN_FILE" | tr -d '\r\n')
-    FULLCHAIN=$(cat /etc/letsencrypt/live/$DOMAIN/fullchain.pem)
-    PRIVKEY=$(cat /etc/letsencrypt/live/$DOMAIN/privkey.pem)
-    
-    # Envia backup atualizado para o OpenBao via REST API
-    jq -n \
-      --arg fc "$FULLCHAIN" \
-      --arg pk "$PRIVKEY" \
-      '{data: {fullchain: $fc, privkey: $pk}}' | \
-      curl -s -X POST \
-        -H "X-Vault-Token: $TOKEN" \
-        -H "Content-Type: application/json" \
-        -d @- \
-        "$OPENBAO_ADDR/v1/secret/data/iam/tls" > /dev/null 2>&1 || true
+# 4. Sincroniza backup com o OpenBao via AppRole
+#    (token estatico nao serve: qualquer token nao-root expira em 768h e o
+#     backup morreria em silencio; AppRole faz login a cada execucao)
+if [ -f "$APPROLE_FILE" ] && command -v jq >/dev/null 2>&1; then
+    ROLE_ID=$(sed -n 's/^role_id=//p' "$APPROLE_FILE" | tr -d '\r\n')
+    SECRET_ID=$(sed -n 's/^secret_id=//p' "$APPROLE_FILE" | tr -d '\r\n')
+    TOKEN=$(jq -n --arg r "$ROLE_ID" --arg s "$SECRET_ID" '{role_id:$r, secret_id:$s}' \
+        | curl -s -X POST -H "Content-Type: application/json" -d @- \
+          "$OPENBAO_ADDR/v1/auth/approle/login" | jq -r '.auth.client_token // empty')
+
+    if [ -z "$TOKEN" ]; then
+        echo "[renew-cert] ERRO: login AppRole no OpenBao falhou (backup TLS NAO enviado)" >&2
+    else
+        FULLCHAIN=$(cat /etc/letsencrypt/live/$DOMAIN/fullchain.pem)
+        PRIVKEY=$(cat /etc/letsencrypt/live/$DOMAIN/privkey.pem)
+        CODE=$(jq -n --arg fc "$FULLCHAIN" --arg pk "$PRIVKEY" \
+            '{data: {fullchain: $fc, privkey: $pk}}' \
+            | curl -s -o /dev/null -w '%{http_code}' -X POST \
+              -H "X-Vault-Token: $TOKEN" -H "Content-Type: application/json" -d @- \
+              "$OPENBAO_ADDR/v1/secret/data/iam/tls")
+
+        if [ "$CODE" = "200" ]; then
+            echo "[renew-cert] backup TLS enviado ao OpenBao"
+        else
+            echo "[renew-cert] ERRO: backup TLS no OpenBao falhou (HTTP $CODE)" >&2
+        fi
+    fi
 fi
 
 # 5. Reload suave no HAProxy (Envia sinal HUP para reler o certificado sem dar downtime)
