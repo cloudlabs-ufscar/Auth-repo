@@ -75,7 +75,9 @@
           X-Vault-Token: "{{ openbao_root_token }}"
         body_format: json
         body:
+          # bound_issuer vive na CONFIG do metodo (nao no role: o role ignora o campo)
           oidc_discovery_url: "https://token.actions.githubusercontent.com"
+          bound_issuer: "https://token.actions.githubusercontent.com"
         status_code: [200, 204]
 
     - name: Configure GitHub Actions OIDC role
@@ -88,7 +90,10 @@
         body:
           role_type: "jwt"
           user_claim: "actor"
-          bound_issuer: "https://token.actions.githubusercontent.com"
+          # sem bound_audiences qualquer JWT emitido para outro servico
+          # (mesmo repo/issuer) seria aceito aqui
+          bound_audiences:
+            - "https://vault.maas:8200"
           bound_claims_type: "glob"
           bound_claims:
             repository: "cloudlabs-ufscar/*"
