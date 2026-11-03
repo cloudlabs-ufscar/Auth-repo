@@ -24,7 +24,7 @@ services:
     environment:
       POSTGRES_DB: "{{ postgres_keycloak_db | default('keycloak') }}"
       POSTGRES_USER: "{{ postgres_keycloak_user | default('keycloak') }}"
-      POSTGRES_PASSWORD: "{{ postgres_keycloak_password | default('password') }}"
+      POSTGRES_PASSWORD: "{{ postgres_keycloak_password }}"
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U {{ postgres_keycloak_user | default('keycloak') }}" ]
       interval: 5s
@@ -41,7 +41,7 @@ services:
     command: postgres -c 'max_connections=100'
     environment:
       - POSTGRES_USER={{ postgres_openfga_user | default('postgres') }}
-      - POSTGRES_PASSWORD={{ postgres_openfga_password | default('password') }}
+      - POSTGRES_PASSWORD={{ postgres_openfga_password }}
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U {{ postgres_openfga_user | default('postgres') }}" ]
       interval: 5s
@@ -55,7 +55,7 @@ services:
     container_name: migrate
     environment:
       - OPENFGA_DATASTORE_ENGINE=postgres
-      - OPENFGA_DATASTORE_URI=postgres://{{ postgres_openfga_user | default('postgres') }}:{{ postgres_openfga_password | default('password') }}@postgres-openfga:5432/{{ postgres_openfga_db | default('postgres') }}?sslmode=disable
+      - OPENFGA_DATASTORE_URI=postgres://{{ postgres_openfga_user | default('postgres') }}:{{ postgres_openfga_password }}@postgres-openfga:5432/{{ postgres_openfga_db | default('postgres') }}?sslmode=disable
     command: migrate
     depends_on:
       postgres-openfga:
@@ -68,7 +68,7 @@ services:
     command: run
     environment:
       - OPENFGA_DATASTORE_ENGINE=postgres
-      - OPENFGA_DATASTORE_URI=postgres://{{ postgres_openfga_user | default('postgres') }}:{{ postgres_openfga_password | default('password') }}@postgres-openfga:5432/{{ postgres_openfga_db | default('postgres') }}?sslmode=disable
+      - OPENFGA_DATASTORE_URI=postgres://{{ postgres_openfga_user | default('postgres') }}:{{ postgres_openfga_password }}@postgres-openfga:5432/{{ postgres_openfga_db | default('postgres') }}?sslmode=disable
       - OPENFGA_DATASTORE_MAX_OPEN_CONNS=100
       #- OPENFGA_AUTHN_METHOD=preshared
       #- OPENFGA_AUTHN_PRESHARED_KEYS=cloudlabsiam
@@ -95,13 +95,13 @@ services:
       # Keycloak 26: KEYCLOAK_ADMIN* foi removido. O bootstrap so vale quando o
       # banco ainda nao tem admin; num banco existente NAO troca a senha.
       KC_BOOTSTRAP_ADMIN_USERNAME: "{{ keycloak_admin_user | default('admin') }}"
-      KC_BOOTSTRAP_ADMIN_PASSWORD: "{{ keycloak_admin_password | default('password!!!!') }}"
+      KC_BOOTSTRAP_ADMIN_PASSWORD: "{{ keycloak_admin_password }}"
       KC_DB: postgres
       KC_DB_URL_HOST: postgres-keycloak
       KC_DB_URL_DATABASE: "{{ postgres_keycloak_db | default('keycloak') }}"
       KC_DB_SCHEMA: public
       KC_DB_USERNAME: "{{ postgres_keycloak_user | default('keycloak') }}"
-      KC_DB_PASSWORD: "{{ postgres_keycloak_password | default('password') }}"
+      KC_DB_PASSWORD: "{{ postgres_keycloak_password }}"
       # Keycloak 26 usa hostname v2: URL completa (esquema+porta) no proprio
       # KC_HOSTNAME. KC_HOSTNAME_PORT e KC_HOSTNAME_STRICT* foram removidos.
       KC_HOSTNAME: "https://{{ iam_domain }}:8443"
