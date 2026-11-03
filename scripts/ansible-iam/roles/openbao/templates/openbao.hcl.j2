@@ -12,5 +12,18 @@ listener "tcp" {
   tls_disable = 1
 }
 
+{% if openbao_audit_enabled | bool %}
+# Audit device declarativo (OpenBao 2.7+ recusa `bao audit enable` pela API
+# sem `unsafe_allow_api_audit_creation = true`). O device fica no Raft e é
+# habilitado pelo node ativo no boot/SIGHUP; cada node escreve no seu próprio
+# arquivo local. Mesma config em todos os nodes é obrigatória.
+audit "file" "{{ openbao_audit_path }}" {
+  description = "Audit log local, rotacionado por /etc/logrotate.d/openbao"
+  options {
+    file_path = "{{ openbao_audit_log }}"
+  }
+}
+{% endif %}
+
 api_addr     = "{{ openbao_api_addr }}"
 cluster_addr = "{{ openbao_cluster_addr }}"

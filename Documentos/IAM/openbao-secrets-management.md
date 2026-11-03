@@ -252,12 +252,47 @@ bao operator raft list-peers
 
 ### Ler e Atualizar Segredos do IAM
 ```bash
-# Ler segredo com token de menor privilégio via nome DNS
-curl -s -H "X-Vault-Token: $(cat /home/nicolas/ansible-scripts/files/openbao-token)" \
-  http://vault.maas:8200/v1/secret/data/iam/openfga | jq .data.data
+# No idp.maas: login via AppRole (não há mais token estático em disco)
+A=/opt/iam/.openbao-deploy-approle
+TOK=$(jq -n --arg r "$(sudo sed -n 's/^role_id=//p' $A)" --arg s "$(sudo sed -n 's/^secret_id=//p' $A)" \
+  '{role_id:$r,secret_id:$s}' \
+  | curl -s -X POST -H 'Content-Type: application/json' -d @- \
+    http://vault.maas:8200/v1/auth/approle/login | jq -r '.auth.client_token')
+
+curl -s -H "X-Vault-Token: $TOK" http://vault.maas:8200/v1/secret/data/iam/openfga | jq .data.data
 
 # Atualizar segredo (requer token com permissão de escrita)
 bao kv put secret/iam/openfga api_token="novo-token" store_id="01KY7TAWJYJ5KR48TK19E1CT99"
+```
+
+### Auditoria (audit device)
+
+O device é **declarativo** no `openbao.hcl` — o OpenBao 2.7 recusa `bao audit enable` pela API
+(`cannot enable audit device via API; use declarative, config-based audit device management`),
+a menos que se ligue `unsafe_allow_api_audit_creation = true`:
+
+```hcl
+audit "file" "default" {
+  description = "Audit log local, rotacionado por /etc/logrotate.d/openbao"
+  options {
+    file_path = "/var/log/openbao/audit.log"
+  }
+}
+```
+
+- A configuração fica no Raft e é aplicada pelo nó ativo no boot e em `SIGHUP`
+  (`systemctl reload openbao` — sem downtime, sem re-selar o cluster).
+- Cada nó escreve no **seu** arquivo local (`/var/log/openbao/audit.log`, `0600 openbao`).
+- Rotação em `/etc/logrotate.d/openbao`: diária, 30 cópias comprimidas, **`copytruncate`**
+  (o device mantém o descritor aberto e não reabre o arquivo).
+- Falha de escrita é *fail closed*: sem diretório/espaço o nó deixa de responder. Por isso o
+  role cria o diretório em **todos** os nós antes de habilitar o device.
+- Valores sensíveis saem como `hmac-sha256:...` (`log_raw=false`).
+
+```bash
+# Conferir device e arquivo
+BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN=$(sudo cat /var/lib/openbao/data/root.token) bao audit list
+sudo tail -1 /var/log/openbao/audit.log | jq -r '.request.path'
 ```
 
 ### Executar Playbook de Sincronização do Incus

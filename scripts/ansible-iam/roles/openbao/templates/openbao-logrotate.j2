@@ -1,0 +1,16 @@
+# Rotação do audit log do OpenBao.
+#
+# O device "file" mantém o descritor aberto e não reabre o arquivo depois de
+# uma rotação, por isso é obrigatório usar copytruncate (a alternativa,
+# create + reopen, perderia as escritas até o próximo restart).
+{{ openbao_audit_log }} {
+    daily
+    rotate {{ openbao_audit_retention_days }}
+    maxage 90
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+    su {{ openbao_user }} {{ openbao_group }}
+}

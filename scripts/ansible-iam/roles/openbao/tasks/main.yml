@@ -5,8 +5,35 @@
       - curl
       - jq
       - libcap2-bin
+      - logrotate
     state: present
     cache_valid_time: 3600
+
+- name: Check installed OpenBao package version
+  ansible.builtin.command:
+    argv:
+      - dpkg-query
+      - -W
+      - -f=${Version}
+      - openbao
+  register: openbao_pkg_version
+  changed_when: false
+  failed_when: false
+
+- name: Decide whether the package needs to be installed
+  ansible.builtin.set_fact:
+    openbao_needs_install: >-
+      {{ (openbao_pkg_version.rc | default(1)) != 0
+         or (openbao_pkg_version.stdout | default('') | trim) != openbao_version }}
+
+- name: Refuse to downgrade an OpenBao that is newer than the repo version
+  ansible.builtin.assert:
+    that: openbao_pkg_version.stdout | trim is version(openbao_version, '<=')
+    fail_msg: >-
+      O host {{ inventory_hostname }} tem OpenBao {{ openbao_pkg_version.stdout | trim }}
+      e o repositório pede {{ openbao_version }}. Atualize openbao_version no
+      repositório em vez de rebaixar o serviço.
+  when: (openbao_pkg_version.rc | default(1)) == 0
 
 - name: Ensure files directory exists on controller
   ansible.builtin.file:
@@ -24,18 +51,20 @@
     mode: "0644"
   delegate_to: localhost
   become: no
-  run_once: yes
+  when: openbao_needs_install | bool
 
 - name: Copy OpenBao deb package to target
   ansible.builtin.copy:
     src: "{{ role_path }}/files/{{ openbao_deb_name }}"
     dest: "/tmp/{{ openbao_deb_name }}"
     mode: "0644"
+  when: openbao_needs_install | bool
 
 - name: Install OpenBao deb package
   ansible.builtin.apt:
     deb: "/tmp/{{ openbao_deb_name }}"
     state: present
+  when: openbao_needs_install | bool
 
 - name: Ensure OpenBao data directory exists
   ansible.builtin.file:
@@ -56,6 +85,16 @@
     - /usr/local/bin/bao
     - /usr/local/bin/vault
 
+- name: Check whether the OpenBao service is already running
+  ansible.builtin.command: systemctl is-active --quiet openbao
+  register: openbao_unit
+  changed_when: false
+  failed_when: false
+
+- name: Remember whether OpenBao was already running
+  ansible.builtin.set_fact:
+    openbao_unit_active: "{{ openbao_unit.rc == 0 }}"
+
 - name: Deploy OpenBao HCL configuration
   ansible.builtin.template:
     src: openbao.hcl.j2
@@ -63,7 +102,7 @@
     owner: "{{ openbao_user }}"
     group: "{{ openbao_group }}"
     mode: "0640"
-  notify: restart openbao
+  notify: reload openbao
 
 - name: Set environment variables for shell sessions
   ansible.builtin.copy:
@@ -230,6 +269,58 @@
 - name: Display Raft cluster peers
   ansible.builtin.debug:
     msg: "{{ (openbao_raft_peers_raw.stdout | from_json).data.config.servers }}"
+  run_once: yes
+
+# ---------------------------------------------------------------------------
+# Audit device
+#
+# O device é configurado no cluster (fica no Raft), mas cada node escreve no
+# seu próprio arquivo local. O diretório precisa existir em TODOS os nodes
+# antes do enable: se um node não conseguir escrever, o OpenBao passa a
+# bloquear as requisições nele (audit failure = fail closed).
+# ---------------------------------------------------------------------------
+- name: Ensure audit log directory exists
+  ansible.builtin.file:
+    path: "{{ openbao_audit_dir }}"
+    state: directory
+    owner: "{{ openbao_user }}"
+    group: "{{ openbao_group }}"
+    mode: "0750"
+  when: openbao_audit_enabled | bool
+
+- name: Deploy audit log rotation
+  ansible.builtin.template:
+    src: openbao-logrotate.j2
+    dest: /etc/logrotate.d/openbao
+    owner: root
+    group: root
+    mode: "0644"
+  when: openbao_audit_enabled | bool
+
+- name: Check which audit devices are enabled
+  ansible.builtin.command: /usr/bin/bao audit list -format=json
+  register: openbao_audit_devices
+  changed_when: false
+  failed_when: false
+  run_once: yes
+  environment:
+    BAO_ADDR: "http://127.0.0.1:8200"
+    BAO_TOKEN: "{{ primary_root_token_b64.content | b64decode }}"
+
+- name: Warn when the audit device is still missing
+  ansible.builtin.debug:
+    msg: >-
+      Nenhum audit device ativo. O stanza `audit` do openbao.hcl é aplicado no
+      boot/reload do node ativo; se o arquivo já foi atualizado, reinicie o
+      serviço para ativá-lo.
+  when:
+    - openbao_audit_enabled | bool
+    - openbao_audit_devices.rc == 0
+    - "openbao_audit_path ~ '/' not in (openbao_audit_devices.stdout | default('{}', true) | from_json)"
+
+- name: Display enabled audit devices
+  ansible.builtin.debug:
+    var: openbao_audit_devices.stdout
   run_once: yes
 
 

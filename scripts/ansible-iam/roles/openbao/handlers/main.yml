@@ -3,7 +3,8 @@
   ansible.builtin.systemd:
     daemon_reload: yes
 
-- name: restart openbao
+- name: reload openbao
   ansible.builtin.systemd:
     name: openbao
-    state: restarted
+    state: reloaded
+  when: openbao_unit_active | default(false) | bool
