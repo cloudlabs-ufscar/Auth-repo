@@ -106,8 +106,9 @@
   ansible.builtin.file:
     path: "{{ haproxy_pem_path }}"
     owner: root
-    group: root
-    mode: '0644'
+    # The HAProxy container runs as UID/GID 99 (user haproxy).
+    group: 99
+    mode: '0640'
   when: haproxy_pem_file.rc == 0
 
 - name: Cron Job certbot renew (Runs twice a day)
