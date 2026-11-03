@@ -4,3 +4,7 @@
     project_src: "{{ deploy_dir }}"
     state: present
     pull: always
+    # Containers renomeados manualmente (ex.: *-pg14old no cutover do PG16) mantem o
+    # label com.docker.compose.service do servico original. Sem remove_orphans o
+    # compose tenta "recriar" esses containers e colide no nome.
+    remove_orphans: true
