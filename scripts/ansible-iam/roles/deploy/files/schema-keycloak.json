@@ -5,6 +5,9 @@
     "openfga-events-publisher",
     "jboss-logging"
   ],
+  "adminEventsEnabled": true,
+  "adminEventsDetailsEnabled": false,
+  "eventsEnabled": false,
   "roles": {
     "realm": [
       {
