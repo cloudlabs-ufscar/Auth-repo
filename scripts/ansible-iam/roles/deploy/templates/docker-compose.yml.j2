@@ -77,9 +77,11 @@ services:
       interval: 3s
       timeout: 30s
       retries: 3
-    ports:
-      - "8081:8081"
-      - "3000:3000"
+    # Sem portas publicadas: o acesso externo e' pelo HAProxy (8080, TLS).
+    # 3000/8081 expunham a API sem autenticacao direto no host.
+    expose:
+      - "8080"
+      - "8081"
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -114,7 +116,8 @@ services:
       GITHUB_CLIENT_SECRET: "{{ github_client_secret }}"
       OPENSTACK_CLIENT_SECRET: "{{ openstack_client_secret }}"
     ports:
-      - "9080:8080"
+      # Só loopback: o caminho publico e' o HAProxy em 8443.
+      - "127.0.0.1:9080:8080"
     volumes:
       - {{ keycloak_schema_path }}:/opt/keycloak/data/import/realm.json:ro
       - ./keycloak-openfga-event-publisher.jar:/opt/keycloak/providers/keycloak-openfga-event-publisher.jar
