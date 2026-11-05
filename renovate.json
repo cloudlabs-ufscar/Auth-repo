@@ -1,0 +1,50 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "timezone": "America/Sao_Paulo",
+  "schedule": ["before 6am on monday"],
+  "dependencyDashboard": true,
+  "prConcurrentLimit": 3,
+  "labels": ["dependencies"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Imagens do docker-compose (template Jinja)",
+      "managerFilePatterns": [
+        "/^scripts\\/ansible-iam\\/roles\\/deploy\\/templates\\/docker-compose\\.yml\\.j2$/"
+      ],
+      "matchStrings": ["image:\\s+(?<depName>[^\\s:]+):(?<currentValue>[^\\s]+)"],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Versão do OpenBao (release .deb do GitHub)",
+      "managerFilePatterns": [
+        "/^scripts\\/ansible-iam\\/roles\\/openbao\\/defaults\\/main\\.yml$/"
+      ],
+      "matchStrings": ["openbao_version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "openbao/openbao",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Postgres: o tag `16` já flutua dentro do major (pega 16.x sozinho). Major novo exige migração planejada (o PG14→16 foi manual), então o Renovate não mexe.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["postgres"],
+      "enabled": false
+    },
+    {
+      "description": "Keycloak: major sempre em PR próprio e destacado (migração de schema exige janela).",
+      "matchPackageNames": ["quay.io/keycloak/keycloak"],
+      "matchUpdateTypes": ["major"],
+      "addLabels": ["major", "keycloak"]
+    },
+    {
+      "description": "OpenBao: major/minor em PR próprio (revisar changelog antes).",
+      "matchPackageNames": ["openbao/openbao"],
+      "addLabels": ["openbao"]
+    }
+  ]
+}

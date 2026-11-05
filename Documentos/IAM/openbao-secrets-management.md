@@ -108,6 +108,17 @@ Para unificar a segurança criptográfica interna e permitir comunicação HTTPS
    - O Ansible instala o certificado público em `/usr/local/share/ca-certificates/cloudlabs-ca.crt` em todos os nós da infraestrutura (`idp.maas`, `inc1-cirrus`, `inc2-cirrus`, `inc3-cirrus`).
    - A trust store do sistema operacional é atualizada via `update-ca-certificates`.
 
+> **Estado verificado em 2026-11-05.** A CA existe de fato: issuer `50bbc6e4…`, `CA:TRUE`,
+> `notBefore 2026-09-29`, `notAfter 2041-09-25`, `max_lease_ttl 131400h`. A distribuição
+> também existe, mas mora no repositório **`ansible-scripts`**
+> (`configure-incus/configure-incus.yml`), não neste: ele copia o `.crt` e roda
+> `update-ca-certificates` nos nós Incus; o `idp.maas` também tem o arquivo instalado.
+> O que **não** existe: `pki/roles` (nenhum molde de emissão) e, portanto, nenhum
+> certificado de serviço emitido — `pki/certs` só lista a própria CA. Hoje a CA é apenas
+> *trust anchor*; criar os roles é pré-requisito para usar TLS interno (ex.: listener do
+> OpenBao, que hoje roda em HTTP na `8200`).
+
+
 ---
 
 ## 6. 🔐 Gestão de Segredos do OpenFGA & Menor Privilégio

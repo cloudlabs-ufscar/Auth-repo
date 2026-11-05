@@ -150,6 +150,12 @@ Para manter o repositório público ou compartilhado sem vazar dados sensíveis,
 
 *(Nota: Os nomes das secrets utilizam o prefixo `KEYCLOAK_GITHUB_*` em conformidade com as regras do GitHub, que proíbem variáveis personalizadas começando com `GITHUB_`).*
 
+> [!NOTE]
+> **Por que o `OPENSTACK_CLIENT_SECRET` não precisa estar nas Secrets do GitHub?**
+> A integração do OpenStack segue o modelo de segredos dinâmicos via OpenBao (`secret/data/iam/openstack`).
+> Durante o deploy executado pelo Ansible (`fetch-secrets.yml`), o playbook lê diretamente a chave `client_secret` do OpenBao na rede interna (`http://vault.maas:8200`) e a repassa ao container do Keycloak via variável de ambiente (`OPENSTACK_CLIENT_SECRET`).
+> Portanto, **nenhuma secret adicional precisa ser configurada nas configurações do GitHub Actions**, mantendo a superfície de exposição no GitHub estritamente restrita às credenciais de transporte/SSH.
+
 ---
 
 ## 6. Evolução Zero-Trust: Federação OIDC & Topologias de Deploy
@@ -170,4 +176,36 @@ Para eliminar completamente arquivos estáticos de token (`openbao-token`) e sec
 - **Opção B (Deploy Direto no `idp.maas` - Evolução Zero-Trust):**
   - O GitHub Actions conecta diretamente na porta 22 do `idp.maas`.
   - O `idp.maas` executa seu próprio deploy local e fala com o OpenBao exclusivamente pela API HTTP (`http://vault.maas:8200`).
-  - *Vantagem de Segurança:* Desacoplamento e redução do raio de explosão (*blast radius*). A máquina do IAM **não tem chaves SSH para o servidor do cofre OpenBao**, garantindo que nenhum comprometimento no IAM ou na pipeline possa conceder acesso administrativo aos nós do cofre.
+  - *Vantagem de Segurança:* Desacoplamento e redução do raio de explosão (*blast radius*). A máquina do `idp.maas` **não tem chaves SSH para o servidor do cofre OpenBao**, garantindo que nenhum comprometimento no IAM ou na pipeline possa conceder acesso administrativo aos nós do cofre.
+
+## 7. Atualização de Dependências (Renovate)
+
+As imagens do stack e a versão do OpenBao ficam pinadas no repositório; o Renovate abre PR
+quando sai versão nova. Ele **nunca** faz push em `main` — só abre PR, que passa pelo mesmo
+caminho de revisão.
+
+- Workflow: [`.github/workflows/renovate.yml`](../../.github/workflows/renovate.yml) — roda
+  semanalmente (segunda, 06:00 UTC) e por `workflow_dispatch`.
+- Configuração: [`renovate.json`](../../renovate.json).
+- Token: usa o secret `RENOVATE_TOKEN` se existir; senão cai no `GITHUB_TOKEN` do workflow
+  (que já tem `contents: write` + `pull-requests: write`). PRs abertos pelo `GITHUB_TOKEN`
+  **não** disparam outros workflows — o deploy só acontece quando alguém faz o merge.
+
+O que é monitorado:
+
+| Origem | Como |
+|--------|------|
+| `haproxy`, `postgres`, `openfga/openfga`, `quay.io/keycloak/keycloak` | regex manager em `roles/deploy/templates/docker-compose.yml.j2` (o arquivo é Jinja, então o manager nativo de Docker não enxerga) |
+| `openbao_version` | regex manager em `roles/openbao/defaults/main.yml`, datasource `github-releases` de `openbao/openbao` |
+| `actions/*` e actions de terceiros | datasource `github-actions` (padrão do `config:recommended`) |
+
+Regras deliberadas:
+
+- **`postgres` fica fora do Renovate** (`enabled: false`): o tag `16` já flutua
+  dentro do major e pega os patches sozinho; um major novo exige migração
+  planejada (o PG14→16 foi feito à mão, com dump/restore e janela de rollback).
+- **Keycloak major** vem em PR próprio, com label `keycloak`, porque migração de schema
+  exige janela e backup.
+- **OpenBao** vem com label `openbao`; o role se recusa a rebaixar versão
+  (`assert` em `roles/openbao/tasks/main.yml`).
+
