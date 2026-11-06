@@ -300,9 +300,39 @@ Estado verificado em **2026-11-05** no líder:
 | Sem JWT e sem `-e openbao_token`, o playbook falha antes de ler segredos | Sim — `ok=9, failed=1`, mensagem explícita |
 | Com `-e openbao_token` (token de AppRole), o deploy completo roda | Sim — `ok=31, changed=2, failed=0` |
 | JWT inválido é rejeitado pelo OpenBao | Sim — `error verifying token signature` (não é erro de rede: o JWKS é alcançável via proxy) |
+| Cadeia JWT completa (env → login → policy → leitura → deploy) | Sim, com JWT assinado por chave de teste em mount descartável — `ok=33, changed=2, failed=0` (ver §7) |
 | O nó do OpenBao alcança o GitHub **direto**, sem proxy | Não — `curl` direto dá `000`; o egress depende do Tinyproxy |
 
-**Limitação conhecida:** o caminho completo (JWT real do GitHub → login → deploy) só se valida
-numa execução do workflow (`push` em `main` ou `workflow_dispatch`). Até lá, o que está provado
-é o contrato: configuração do OpenBao, falha limpa sem credencial, e deploy funcionando com
-token explícito.
+**Limitação conhecida:** o que só o GitHub pode fornecer é o JWT real (assinatura + claims).
+O resto da cadeia está provado por comando (§7). O primeiro `push` em `main` é a validação
+final — e se falhar, o deploy para (por design), com recuperação manual documentada.
+
+---
+
+## 7. Como testar a cadeia sem o GitHub
+
+O único pedaço que depende do GitHub é a emissão do JWT. Todo o resto pode ser exercitado com
+um **mount de auth descartável** e uma chave própria — sem tocar no mount `jwt` real:
+
+1. No líder do OpenBao, gerar par de chaves e criar `jwt-test`:
+   ```bash
+   bao auth enable -path=jwt-test jwt
+   bao write auth/jwt-test/config \
+     jwt_validation_pubkeys=@/tmp/oidc-test/pub.pem \
+     bound_issuer="https://token.actions.githubusercontent.com"
+   # role com os MESMOS parâmetros da github-actions (bound_audiences, bound_claims, ttl)
+   ```
+2. Montar um JWT com as claims do GitHub (`iss`, `aud=https://vault.maas:8200`,
+   `repository=cloudlabs-ufscar/Auth-repo`, `actor`, `exp`) e assinar com RS256
+   (`openssl dgst -sha256 -sign`).
+3. Rodar o playbook exatamente como o CI faz, trocando só o mount:
+   ```bash
+   ACTIONS_ID_TOKEN="$(cat /tmp/oidc-test/jwt)" \
+     ansible-playbook -i inventory/inventory tasks/first-deploy.yml \
+     -e openbao_jwt_mount=jwt-test -e ansible_user=ubuntu
+   ```
+   `openbao_jwt_mount` existe só para isso; o default é `jwt`.
+4. **Sempre** derrubar o mount depois: `bao auth disable jwt-test` e apagar a chave privada.
+
+O audit log registra a troca: `path=auth/jwt-test/login`, `type=response`,
+`policies=["default","iam-reader"]`. É a prova de que cada login fica rastreável.
