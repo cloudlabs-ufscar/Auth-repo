@@ -314,6 +314,13 @@ final — e se falhar, o deploy para (por design), com recuperação manual docu
 O único pedaço que depende do GitHub é a emissão do JWT. Todo o resto pode ser exercitado com
 um **mount de auth descartável** e uma chave própria — sem tocar no mount `jwt` real:
 
+> [!WARNING]
+> **Não use `workflow_dispatch` numa branch para "testar de leve".** O script do workflow faz
+> `git reset --hard origin/main` — o workflow da branch roda, mas o **playbook executado é o da
+> `main`**. Se a `main` estiver atrasada, isso **rebaixa a produção** (foi assim que o stack
+> voltou para PG14/KC 25 em 2026-11-06). Teste por comando (abaixo) ou só depois de a `main`
+> estar em dia.
+
 1. No líder do OpenBao, gerar par de chaves e criar `jwt-test`:
    ```bash
    bao auth enable -path=jwt-test jwt
