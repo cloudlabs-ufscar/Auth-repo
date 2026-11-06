@@ -37,13 +37,16 @@ jobs:
           ACTIONS_ID_TOKEN: ${{ steps.openbao-oidc.outputs.jwt }}
           KEYCLOAK_GITHUB_CLIENT_ID: ${{ secrets.KEYCLOAK_GITHUB_CLIENT_ID }}
           KEYCLOAK_GITHUB_CLIENT_SECRET: ${{ secrets.KEYCLOAK_GITHUB_CLIENT_SECRET }}
+          # A ref que disparou o run. O script roda no nimbus (remoto), então o
+          # valor precisa ir no env: não existe $GITHUB_REF_NAME lá.
+          DEPLOY_REF: ${{ github.ref_name }}
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.KEY }}
           port: ${{ secrets.PORT }}
           command_timeout: 20m
-          envs: ACTIONS_ID_TOKEN,KEYCLOAK_GITHUB_CLIENT_ID,KEYCLOAK_GITHUB_CLIENT_SECRET
+          envs: ACTIONS_ID_TOKEN,DEPLOY_REF,KEYCLOAK_GITHUB_CLIENT_ID,KEYCLOAK_GITHUB_CLIENT_SECRET
           script: |
             set -e
 
@@ -64,11 +67,12 @@ jobs:
               exit 1
             fi
 
-            echo "[*] Fetching and resetting to origin/main..."
-            git fetch origin main
-            git reset --hard origin/main
+            REF="${DEPLOY_REF:-main}"
+            echo "[*] Fetching and resetting to origin/$REF..."
+            git fetch origin "$REF"
+            git reset --hard "origin/$REF"
 
-            echo "[*] Repository updated successfully."
+            echo "[*] Repository updated successfully (ref: $REF)."
 
             echo "[*] Navigating to Ansible scripts..."
             cd ~/repos/Auth-repo/scripts/ansible-iam
