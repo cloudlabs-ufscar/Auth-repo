@@ -250,9 +250,19 @@ sudo bash /tmp/opencode/install-forced-command.sh
 ```bash
 # a chave não abre shell (esperado: RECUSADO)
 ssh -i <chave-do-runner> iam@nimbus 'id'
-journalctl -t iam-deploy -n 20 --no-pager
+journalctl -t iam-deploy -n 20 --no-pager   # precisa de root ou grupo systemd-journal
 # prova real: push de doc na main → run verde, deploy executado pelo wrapper
 ```
+
+No log do GitHub Actions as linhas aparecem como `[***-deploy] inicio ref=main ...` — o
+`***` é o mascaramento automático do `secrets.USERNAME` (`iam`, 3 caracteres), não um erro.
+O que importa é ver `inicio ref=...` e `fim ... status=ok`, e **nenhuma** saída do script antigo
+(`[*] Navigating to repository directory...` como texto de saída, não como `echo`).
+
+**Validado em 2026-11-06** (run `42146762449`): `ok=33, changed=2, failed=0`, wrapper executado
+(`[***-deploy] inicio ref=main` / `fim status=ok`), JWT mascarado, e as duas recusas testadas
+manualmente — sem `ACTIONS_ID_TOKEN` → `RECUSADO`, com token que não é JWT → `RECUSADO`, com
+`rm -rf` no `SSH_ORIGINAL_COMMAND` → ignorado.
 
 **Reverter** (volta ao shell comum):
 
