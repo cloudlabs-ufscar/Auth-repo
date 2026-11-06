@@ -263,21 +263,25 @@ bao operator raft list-peers
 
 ### Ler e Atualizar Segredos do IAM
 ```bash
-# No idp.maas: login via AppRole (não há mais token estático em disco)
-# ATENÇÃO: este é o caminho MANUAL/emergência. O deploy normal do CI não usa AppRole —
-# ele troca o JWT do GitHub (auth/jwt/login) por um token de 15 min. Ver
-# github-oidc-openbao-flow.md.
-A=/opt/iam/.openbao-deploy-approle
-TOK=$(jq -n --arg r "$(sudo sed -n 's/^role_id=//p' $A)" --arg s "$(sudo sed -n 's/^secret_id=//p' $A)" \
-  '{role_id:$r,secret_id:$s}' \
-  | curl -s -X POST -H 'Content-Type: application/json' -d @- \
-    http://vault.maas:8200/v1/auth/approle/login | jq -r '.auth.client_token')
+# Caminho MANUAL. O deploy normal do CI não usa AppRole: ele troca o JWT do GitHub
+# (auth/jwt/login) por um token de 15 min. Ver github-oidc-openbao-flow.md.
+#
+# O AppRole idp-deploy foi REVOGADO em 2026-11-06 (role apagada e
+# /opt/iam/.openbao-deploy-approle destruído): credencial estática em disco que
+# ficou redundante depois do OIDC. Para leitura manual, gere um token curto com a root
+# no nó líder:
+sudo bash -c 'BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN=$(cat /var/lib/openbao/data/root.token) \
+  bao token create -policy=iam-reader -ttl=1h -field=token'
 
+# Com esse TOK (de qualquer host que alcance o cofre):
 curl -s -H "X-Vault-Token: $TOK" http://vault.maas:8200/v1/secret/data/iam/openfga | jq .data.data
 
 # Atualizar segredo (requer token com permissão de escrita)
 bao kv put secret/iam/openfga api_token="novo-token" store_id="01KY7TAWJYJ5KR48TK19E1CT99"
 ```
+
+> `renew-cert.sh` continua usando o AppRole **`idp-cert-backup`**
+> (`/opt/iam/.openbao-approle`), que não foi tocado.
 
 ### Auditoria (audit device)
 

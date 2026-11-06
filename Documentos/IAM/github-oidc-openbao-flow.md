@@ -284,10 +284,12 @@ Estado verificado em **2026-11-05** no líder:
 - **Chave SSH do runner** (`secrets.KEY`): o GitHub precisa de *alguma* credencial para entrar no
   nimbus. Ela não dá acesso ao OpenBao — o token do cofre só nasce do JWT. Substituir por
   outro mecanismo (ex.: runner self-hosted) é uma decisão separada.
-- **`/opt/iam/.openbao-deploy-approle` no `idp.maas`**: AppRole `idp-deploy`, mantido como
-  **caminho manual de emergência** para quando não há GitHub (ex.: deploy local com
-  `-e openbao_token=`). O playbook **não** o usa mais. Depois do primeiro deploy OIDC
-  bem-sucedido, pode ser revogado.
+- **~~AppRole `idp-deploy`~~ — revogado em 2026-11-06.** A role foi apagada
+  (`bao delete auth/approle/role/idp-deploy`) e o arquivo `/opt/iam/.openbao-deploy-approle`
+  destruído, depois que o primeiro deploy OIDC passou. As credenciais antigas agora respondem
+  `400 invalid role or secret ID`. Recuperação manual passou a ser um token curto gerado com a
+  root no nó líder (`bao token create -policy=iam-reader -ttl=1h`).
+  `idp-cert-backup` (usado pelo `renew-cert.sh`) e `incus-config` **não** foram tocados.
 
 ---
 
