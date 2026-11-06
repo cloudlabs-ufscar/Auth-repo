@@ -5,14 +5,36 @@ on:
     branches: [ "main" ]
   workflow_dispatch:
 
+# id-token: write é o que permite pedir o JWT do GitHub (OIDC) para trocar por um
+# token de 15 min no OpenBao. Sem isso o deploy não tem como ler os segredos.
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   deploy:
     name: Deploy IAM via Ansible
     runs-on: ubuntu-latest
     steps:
+      - name: Request a GitHub OIDC token for OpenBao
+        id: openbao-oidc
+        run: |
+          set -euo pipefail
+          AUDIENCE="https://vault.maas:8200"
+          RESPONSE=$(curl -sS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${AUDIENCE}")
+          JWT=$(printf '%s' "$RESPONSE" | jq -r '.value // empty')
+          if [ -z "$JWT" ]; then
+            echo "::error::Nao foi possivel obter o JWT do GitHub: $RESPONSE"
+            exit 1
+          fi
+          echo "::add-mask::$JWT"
+          echo "jwt=$JWT" >> "$GITHUB_OUTPUT"
+
       - name: Connect and Deploy via SSH
         uses: appleboy/ssh-action@v1.2.5
         env:
+          ACTIONS_ID_TOKEN: ${{ steps.openbao-oidc.outputs.jwt }}
           KEYCLOAK_GITHUB_CLIENT_ID: ${{ secrets.KEYCLOAK_GITHUB_CLIENT_ID }}
           KEYCLOAK_GITHUB_CLIENT_SECRET: ${{ secrets.KEYCLOAK_GITHUB_CLIENT_SECRET }}
         with:
@@ -21,7 +43,7 @@ jobs:
           key: ${{ secrets.KEY }}
           port: ${{ secrets.PORT }}
           command_timeout: 20m
-          envs: KEYCLOAK_GITHUB_CLIENT_ID,KEYCLOAK_GITHUB_CLIENT_SECRET
+          envs: ACTIONS_ID_TOKEN,KEYCLOAK_GITHUB_CLIENT_ID,KEYCLOAK_GITHUB_CLIENT_SECRET
           script: |
             set -e
 

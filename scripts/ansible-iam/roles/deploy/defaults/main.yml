@@ -2,9 +2,8 @@
 ---
 # defaults file for deploy
 openbao_url: "http://vault.maas:8200"
-openbao_token_file: "{{ deploy_dir }}/.openbao-token"
-openbao_approle_file: "{{ deploy_dir }}/.openbao-deploy-approle"
 openbao_token: ""
+openbao_jwt_role: "github-actions"
 
 # Usuario/banco tem default porque nao sao segredo.
 # Senha NAO tem default de proposito: se o OpenBao nao responder, o playbook falha.

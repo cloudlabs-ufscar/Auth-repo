@@ -160,13 +160,19 @@ Para manter o repositório público ou compartilhado sem vazar dados sensíveis,
 
 ## 6. Evolução Zero-Trust: Federação OIDC & Topologias de Deploy
 
-Para eliminar completamente arquivos estáticos de token (`openbao-token`) e secrets fixos no GitHub:
+Para eliminar os arquivos estáticos de token do OpenBao (`openbao-token`, `secret_id` de AppRole)
+do caminho da pipeline:
 
 ### 6.1 Autenticação Dinâmica via GitHub Actions OIDC
-1. O GitHub Actions emite um token OIDC JWT assinado pela autoridade oficial do GitHub (`https://token.actions.githubusercontent.com`).
-2. O OpenBao valida a assinatura das chaves JWKS públicas do GitHub através do **Tinyproxy** restrito no `idp.maas:8888`.
-3. Uma vez validada a claim de repositório (`cloudlabs-ufscar/*`), o OpenBao gera um token efêmero de 15 minutos com a política restrita `iam-reader`.
-4. Os playbooks consomem credenciais dinamicamente via `http://vault.maas:8200` e o token expira automaticamente após a execução.
+1. O job declara `permissions: id-token: write` e o GitHub Actions emite um JWT assinado pela autoridade oficial do GitHub (`https://token.actions.githubusercontent.com`), com audiência `https://vault.maas:8200`.
+2. O JWT vai por SSH até o bastion nimbus, no ambiente do `ansible-playbook` (`ACTIONS_ID_TOKEN`). O `lookup('env', ...)` o lê no controller.
+3. O OpenBao valida a assinatura contra o JWKS público do GitHub, alcançado pelo **Tinyproxy** restrito no `idp.maas:8888` (o nó não tem egress direto), e confere `aud`, `bound_issuer` e a claim de repositório (`cloudlabs-ufscar/*`, glob).
+4. Validado isso, o OpenBao gera um token de 15 minutos com a política restrita `iam-reader`, usado nas leituras de `secret/iam/*` via `http://vault.maas:8200`.
+5. Sem JWT e sem `-e openbao_token`, o playbook **falha antes de ler qualquer segredo**. Não existe fallback automático para AppRole.
+
+> **O que continua estático:** a chave SSH do runner para o nimbus (`secrets.KEY`). Ela autentica
+> o transporte, não o OpenBao. Detalhes e o estado de implementação (2026-11-05) em
+> [`github-oidc-openbao-flow.md`](github-oidc-openbao-flow.md).
 
 ### 6.2 Topologias de Deploy: Bastion Nimbus vs. Deploy Direto no `idp.maas`
 - **Opção A (Via Bastion Nimbus - Implementação Atual):**

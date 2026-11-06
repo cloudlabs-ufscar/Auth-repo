@@ -264,6 +264,9 @@ bao operator raft list-peers
 ### Ler e Atualizar Segredos do IAM
 ```bash
 # No idp.maas: login via AppRole (não há mais token estático em disco)
+# ATENÇÃO: este é o caminho MANUAL/emergência. O deploy normal do CI não usa AppRole —
+# ele troca o JWT do GitHub (auth/jwt/login) por um token de 15 min. Ver
+# github-oidc-openbao-flow.md.
 A=/opt/iam/.openbao-deploy-approle
 TOK=$(jq -n --arg r "$(sudo sed -n 's/^role_id=//p' $A)" --arg s "$(sudo sed -n 's/^secret_id=//p' $A)" \
   '{role_id:$r,secret_id:$s}' \

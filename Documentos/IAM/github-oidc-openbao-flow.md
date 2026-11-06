@@ -1,6 +1,10 @@
 # 🔐 Federação Zero-Trust: GitHub Actions OIDC + OpenBao HA
 
-Este documento descreve a arquitetura e o fluxo de autenticação **Zero-Trust** utilizando **OpenID Connect (OIDC)** entre o **GitHub Actions** e o cluster **OpenBao**, eliminando a necessidade de credenciais estáticas (tokens de longa duração ou senhas salvas em disco) para a leitura de segredos na pipeline de CI/CD.
+Este documento descreve a arquitetura e o fluxo de autenticação **Zero-Trust** utilizando **OpenID Connect (OIDC)** entre o **GitHub Actions** e o cluster **OpenBao**.
+
+O que a federação elimina é a credencial de **leitura de segredos**: não existe mais token de OpenBao nem `secret_id` de AppRole em disco no caminho do CI — o job troca um JWT de vida curta por um token de 15 minutos.
+
+O que **continua estático**, e é importante não confundir: a **chave SSH do runner para o bastion** (`secrets.KEY`, usada pelo `appleboy/ssh-action`). Ela autentica o *transporte* até o nimbus, não o acesso ao OpenBao. Uma chave SSH comprometida dá shell no bastion, mas **não** lê segredos do cofre.
 
 ---
 
@@ -25,7 +29,7 @@ Com a Federação OIDC:
 
 > [!IMPORTANT]
 > **Isolamento de Rede:** O cluster OpenBao (`vault.maas`) **não possui IP público nem portas abertas para a internet**. Ele reside na rede privada interna (`.maas`).
-> O GitHub Actions **não faz requisições HTTP diretas** ao OpenBao pela internet. Em vez disso, o Runner obtém o JWT na nuvem do GitHub e o encaminha através da conexão **SSH** para o host do laboratório (`200.18.99.87`), onde o script local realiza as chamadas ao OpenBao pela rede interna.
+> O GitHub Actions **não faz requisições HTTP diretas** ao OpenBao pela internet. O Runner obtém o JWT na nuvem do GitHub e o encaminha por **SSH para o bastion nimbus** (`nimbus.dc.ufscar.br:2002`, usuário `iam`). É o nimbus que roda o `ansible-playbook`; o JWT viaja no ambiente do processo e o `lookup('env', 'ACTIONS_ID_TOKEN')` o lê no controller. O `POST /v1/auth/jwt/login` é executado pela tarefa `uri` **no host alvo `idp.maas` (`200.18.99.87`)**, dentro da rede `.maas`.
 
 ```mermaid
 sequenceDiagram
@@ -36,7 +40,8 @@ sequenceDiagram
         participant GHOIDC as 🐙 GitHub OIDC (token.actions)
     end
     box rgb(20, 50, 40) "Borda & Datacenter Local (Rede Privada .maas)"
-        participant SSH as 🖥️ Host Alvo / Bastion (SSH :200.18.99.87)
+        participant NIMBUS as 🖥️ Bastion nimbus (SSH :2002)
+        participant IDP as ⚙️ idp.maas (200.18.99.87)
         participant PROXY as 🛡️ Tinyproxy (idp.maas:8888)
         participant BAO as 🗝️ OpenBao HA (vault.maas:8200)
         participant KV as 📦 OpenBao KV-v2 (secret/iam/*)
@@ -47,16 +52,19 @@ sequenceDiagram
     
     rect rgb(35, 45, 60)
         Note over GHA,GHOIDC: FASE 1: Emissão do JWT na Nuvem
-        GHA->>GHOIDC: GET $ACTIONS_ID_TOKEN_REQUEST_URL (Bearer Token da Action)
+        GHA->>GHOIDC: GET $ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://vault.maas:8200
         GHOIDC-->>GHA: Retorna OIDC JWT Token (assinado com chave RSA do GitHub)
+        Note over GHA: ::add-mask:: no JWT e envio em $GITHUB_OUTPUT
     end
 
     rect rgb(25, 55, 45)
-        Note over GHA,SSH: FASE 2: Conexão SSH e Injeção do JWT no Datacenter
-        GHA->>SSH: Conexão SSH (appleboy/ssh-action) com env: ACTIONS_ID_TOKEN
+        Note over GHA,NIMBUS: FASE 2: SSH para o bastion com o JWT no ambiente
+        GHA->>NIMBUS: appleboy/ssh-action (secrets.KEY) com env: ACTIONS_ID_TOKEN
+        NIMBUS->>IDP: ansible-playbook (host alvo: 200.18.99.87)
+        Note over NIMBUS: lookup('env','ACTIONS_ID_TOKEN') resolve aqui (controller)
         
-        Note over SSH,BAO: FASE 3: Troca do JWT por Token do OpenBao na Rede Local
-        SSH->>BAO: POST http://vault.maas:8200/v1/auth/jwt/login {"role": "github-actions", "jwt": "..."}
+        Note over IDP,BAO: FASE 3: Troca do JWT por Token do OpenBao
+        IDP->>BAO: POST http://vault.maas:8200/v1/auth/jwt/login {"role": "github-actions", "jwt": "..."}
         
         Note over BAO,PROXY: OpenBao consulta chaves públicas via Egress Proxy
         BAO->>PROXY: CONNECT token.actions.githubusercontent.com:443
@@ -64,22 +72,23 @@ sequenceDiagram
         GHOIDC-->>PROXY: Retorna JWKS (chaves públicas RSA)
         PROXY-->>BAO: Encaminha chaves públicas
         
-        Note over BAO: Valida assinatura, claims (repository="cloudlabs-ufscar/*") e TTL
-        BAO-->>SSH: Retorna OpenBao Client Token (TTL: 15m, policy: "iam-reader")
+        Note over BAO: Valida assinatura, aud, claims (repository="cloudlabs-ufscar/*") e TTL
+        BAO-->>IDP: Retorna OpenBao Client Token (TTL: 15m, policy: "iam-reader")
     end
 
     rect rgb(30, 50, 60)
-        Note over SSH,KV: FASE 4: Leitura de Segredos e Deploy no Host
-        SSH->>BAO: GET /v1/secret/data/iam/database (Header: X-Vault-Token)
+        Note over IDP,KV: FASE 4: Leitura de Segredos e Deploy
+        IDP->>BAO: GET /v1/secret/data/iam/database (Header: X-Vault-Token)
         BAO->>KV: Recupera segredos encriptados no Raft Storage
         KV-->>BAO: Retorna credenciais do PostgreSQL
-        BAO-->>SSH: HTTP 200 {"data": {"data": {"keycloak_db_password": "..."}}}
+        BAO-->>IDP: HTTP 200 {"data": {"data": {"keycloak_db_password": "..."}}}
         
-        SSH->>BAO: GET /v1/secret/data/iam/keycloak (Header: X-Vault-Token)
-        BAO-->>SSH: HTTP 200 {"data": {"data": {"admin_password": "..."}}}
+        IDP->>BAO: GET /v1/secret/data/iam/keycloak (Header: X-Vault-Token)
+        BAO-->>IDP: HTTP 200 {"data": {"data": {"admin_password": "..."}}}
         
-        Note over SSH: Ansible renderiza templates e atualiza containers
-        SSH-->>GHA: Deploy concluído com sucesso via SSH
+        Note over IDP: Ansible renderiza templates e atualiza containers
+        IDP-->>NIMBUS: resultado das tarefas
+        NIMBUS-->>GHA: Deploy concluído com sucesso via SSH
         Note over GHA: Token expira automaticamente em 15 minutos (Zero-Trust)
     end
 ```
@@ -95,11 +104,37 @@ permissions:
   contents: read
   id-token: write    # <-- Permite gerar o token OIDC
 ```
-O runner utiliza as variáveis internas injetadas pelo GitHub para obter o token:
-```bash
-JWT_TOKEN=$(curl -sLS "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=https://vault.maas:8200" \
-  -H "User-Agent: actions/oidc-client" \
-  -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" | jq -r '.value')
+O runner utiliza as variáveis internas injetadas pelo GitHub para obter o token. Este é o passo real do `deploy.yml`:
+
+```yaml
+- name: Request a GitHub OIDC token for OpenBao
+  id: openbao-oidc
+  run: |
+    set -euo pipefail
+    AUDIENCE="https://vault.maas:8200"
+    RESPONSE=$(curl -sS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+      "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${AUDIENCE}")
+    JWT=$(printf '%s' "$RESPONSE" | jq -r '.value // empty')
+    if [ -z "$JWT" ]; then
+      echo "::error::Nao foi possivel obter o JWT do GitHub: $RESPONSE"
+      exit 1
+    fi
+    echo "::add-mask::$JWT"
+    echo "jwt=$JWT" >> "$GITHUB_OUTPUT"
+```
+
+A `audience` **precisa** ser exatamente `https://vault.maas:8200`: é o valor que o role compara em `bound_audiences`. Um JWT emitido para outra audiência (mesmo repositório, mesmo emissor) é rejeitado.
+
+O JWT segue para o bastion no `env` do `appleboy/ssh-action`:
+
+```yaml
+- name: Connect and Deploy via SSH
+  uses: appleboy/ssh-action@v1.2.5
+  env:
+    ACTIONS_ID_TOKEN: ${{ steps.openbao-oidc.outputs.jwt }}
+  with:
+    ...
+    envs: ACTIONS_ID_TOKEN,KEYCLOAK_GITHUB_CLIENT_ID,KEYCLOAK_GITHUB_CLIENT_SECRET
 ```
 
 #### Anatomia das Claims do JWT do GitHub:
@@ -118,7 +153,8 @@ JWT_TOKEN=$(curl -sLS "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=https://vault.ma
 ---
 
 ### Passo 2: Troca do JWT por Token de Acesso no OpenBao
-O runner faz uma requisição `POST` para o endpoint de autenticação JWT do OpenBao:
+A tarefa `uri` da role `deploy` (`roles/deploy/tasks/fetch-secrets.yml`) faz um `POST` no endpoint de autenticação JWT do OpenBao. A requisição sai do **host alvo** (`idp.maas`), não do runner:
+
 ```http
 POST /v1/auth/jwt/login HTTP/1.1
 Host: vault.maas:8200
@@ -130,6 +166,15 @@ Content-Type: application/json
 }
 ```
 
+O playbook aceita **duas portas de entrada explícitas** e nenhuma silenciosa:
+
+| Origem | Como chega | Quando usar |
+| :--- | :--- | :--- |
+| GitHub Actions | `ACTIONS_ID_TOKEN` no ambiente do controller (nimbus) | Deploy normal via push/`workflow_dispatch` |
+| Operador | `-e openbao_token=<token>` | Execução manual de emergência |
+
+Se **nenhuma** das duas existir, o playbook falha antes de tentar ler qualquer segredo, com mensagem explícita. Não há fallback para AppRole nem para arquivo de token.
+
 ---
 
 ### Passo 3: Validação das Chaves via Egress Proxy (Tinyproxy)
@@ -138,8 +183,10 @@ Como o cluster OpenBao reside na rede interna `.maas` sem gateway de internet di
 * O `tinyproxy` filtra o tráfego estritamente para `token.actions.githubusercontent.com`.
 * O OpenBao baixa o JWKS (`https://token.actions.githubusercontent.com/.well-known/jwks`) e valida:
   1. **Assinatura criptográfica:** Garante que o token foi emitido pelo GitHub.
-  2. **Validade temporal (`exp`):** Garante que o token não expirou.
-  3. **Regra de vinculação (`bound_claims`):** Valida se `repository` pertence a `cloudlabs-ufscar/*`.
+  2. **Emissor (`bound_issuer`):** `https://token.actions.githubusercontent.com`, configurado no *método* (`auth/jwt/config`) — o campo é ignorado se colocado no role.
+  3. **Audiência (`bound_audiences`):** precisa ser `https://vault.maas:8200`, senão qualquer JWT do mesmo repositório emitido para outro serviço seria aceito.
+  4. **Validade temporal (`exp`):** Garante que o token não expirou.
+  5. **Regra de vinculação (`bound_claims`):** Valida se `repository` pertence a `cloudlabs-ufscar/*` (comparação `glob`).
 
 ---
 
@@ -174,28 +221,51 @@ curl -s -H "X-Vault-Token: $CLIENT_TOKEN" \
 
 ---
 
-## 4. Configuração Aplicada no OpenBao (`configure-openbao-proxy-oidc.yml`)
+## 4. Configuração Aplicada no OpenBao (`scripts/ansible-iam/tasks/configure-openbao-proxy-oidc.yml`)
 
-A configuração do motor OIDC no OpenBao é realizada de forma idempotente via Ansible:
+A configuração do motor OIDC no OpenBao é realizada de forma idempotente via Ansible (roda no líder, `vault[0]`):
 
 ```yaml
-# 1. Habilitação do método de autenticação JWT
-bao auth enable jwt
+# 1. Método JWT/OIDC — bound_issuer vive na CONFIG do método
+- name: Configure JWT OIDC discovery URL
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:8200/v1/auth/jwt/config"
+    method: POST
+    body_format: json
+    body:
+      oidc_discovery_url: "https://token.actions.githubusercontent.com"
+      bound_issuer: "https://token.actions.githubusercontent.com"
 
-# 2. Configuração do OIDC Discovery
-bao write auth/jwt/config \
-  oidc_discovery_url="https://token.actions.githubusercontent.com"
-
-# 3. Criação da Role do GitHub Actions com menor privilégio
-bao write auth/jwt/role/github-actions \
-  role_type="jwt" \
-  user_claim="actor" \
-  bound_issuer="https://token.actions.githubusercontent.com" \
-  bound_claims_type="glob" \
-  bound_claims='{"repository": "cloudlabs-ufscar/*"}' \
-  policies="iam-reader" \
-  ttl="15m"
+# 2. Role do GitHub Actions com menor privilégio
+- name: Configure GitHub Actions OIDC role
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:8200/v1/auth/jwt/role/github-actions"
+    method: POST
+    body_format: json
+    body:
+      role_type: "jwt"
+      user_claim: "actor"
+      bound_audiences:
+        - "https://vault.maas:8200"
+      bound_claims_type: "glob"
+      bound_claims:
+        repository: "cloudlabs-ufscar/*"
+      policies:
+        - "iam-reader"
+      ttl: "15m"
 ```
+
+Estado verificado em **2026-11-05** no líder:
+
+| Item | Valor |
+| :--- | :--- |
+| `oidc_discovery_url` | `https://token.actions.githubusercontent.com` |
+| `bound_audiences` | `[https://vault.maas:8200]` |
+| `bound_claims` | `map[repository:cloudlabs-ufscar/*]` (glob) |
+| `token_policies` | `[iam-reader]` |
+| `token_ttl` | `15m` |
+
+`iam-reader` concede apenas `read` em `secret/data/iam/*`.
 
 ---
 
@@ -203,7 +273,36 @@ bao write auth/jwt/role/github-actions \
 
 | Componente | Nível de Acesso | Política | Validade |
 | :--- | :--- | :--- | :--- |
-| **GitHub Actions JWT** | Emissor de identidade | OIDC Claims (`repository`, `actor`) | ~10 minutos |
+| **GitHub Actions JWT** | Emissor de identidade | OIDC Claims (`aud`, `repository`, `actor`) | Curta, definida pelo GitHub |
 | **OpenBao Client Token** | Leitura exclusiva de `secret/data/iam/*` | `iam-reader` | 15 minutos |
 | **Egress Proxy (Tinyproxy)** | Somente saída HTTP/HTTPS para JWKS | Whitelist de domínio | Permanente |
-| **Tokens Estáticos em Disco** | **Eliminados completamente** | N/A | N/A |
+| **Chave SSH do runner → nimbus** | Shell no bastion (não lê o cofre) | `secrets.KEY` no GitHub | **Estática** — rotacionar manualmente |
+| **Tokens de OpenBao em disco (CI)** | — | **Eliminados do caminho do CI** | N/A |
+
+### O que ainda é estático (e por quê)
+
+- **Chave SSH do runner** (`secrets.KEY`): o GitHub precisa de *alguma* credencial para entrar no
+  nimbus. Ela não dá acesso ao OpenBao — o token do cofre só nasce do JWT. Substituir por
+  outro mecanismo (ex.: runner self-hosted) é uma decisão separada.
+- **`/opt/iam/.openbao-deploy-approle` no `idp.maas`**: AppRole `idp-deploy`, mantido como
+  **caminho manual de emergência** para quando não há GitHub (ex.: deploy local com
+  `-e openbao_token=`). O playbook **não** o usa mais. Depois do primeiro deploy OIDC
+  bem-sucedido, pode ser revogado.
+
+---
+
+## 6. Estado de Implementação (2026-11-05)
+
+| Verificação | Resultado |
+| :--- | :--- |
+| `deploy.yml` declara `permissions: id-token: write` e pede o JWT com a audiência correta | Sim |
+| `fetch-secrets.yml` troca o JWT em `auth/jwt/login` (role `github-actions`) | Sim |
+| Sem JWT e sem `-e openbao_token`, o playbook falha antes de ler segredos | Sim — `ok=9, failed=1`, mensagem explícita |
+| Com `-e openbao_token` (token de AppRole), o deploy completo roda | Sim — `ok=31, changed=2, failed=0` |
+| JWT inválido é rejeitado pelo OpenBao | Sim — `error verifying token signature` (não é erro de rede: o JWKS é alcançável via proxy) |
+| O nó do OpenBao alcança o GitHub **direto**, sem proxy | Não — `curl` direto dá `000`; o egress depende do Tinyproxy |
+
+**Limitação conhecida:** o caminho completo (JWT real do GitHub → login → deploy) só se valida
+numa execução do workflow (`push` em `main` ou `workflow_dispatch`). Até lá, o que está provado
+é o contrato: configuração do OpenBao, falha limpa sem credencial, e deploy funcionando com
+token explícito.
