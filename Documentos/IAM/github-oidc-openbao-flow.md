@@ -303,9 +303,11 @@ Estado verificado em **2026-11-05** no líder:
 | Cadeia JWT completa (env → login → policy → leitura → deploy) | Sim, com JWT assinado por chave de teste em mount descartável — `ok=33, changed=2, failed=0` (ver §7) |
 | O nó do OpenBao alcança o GitHub **direto**, sem proxy | Não — `curl` direto dá `000`; o egress depende do Tinyproxy |
 
-**Limitação conhecida:** o que só o GitHub pode fornecer é o JWT real (assinatura + claims).
-O resto da cadeia está provado por comando (§7). O primeiro `push` em `main` é a validação
-final — e se falhar, o deploy para (por design), com recuperação manual documentada.
+**Validado em produção em 2026-11-06** (run `42143416115`, push `5f201a8..a124f34`):
+`ok=33, changed=3, failed=0`, JWT mascarado no log, e o audit log do líder registrou
+`path=auth/jwt/login`, `policies=["default","iam-reader"]`, `meta.role=github-actions`
+às 01:22:54 UTC. O fluxo descrito neste documento é o que roda de verdade. Se falhar, o
+deploy para antes de tocar em qualquer coisa (por design) — recuperação manual no §7.
 
 ---
 
