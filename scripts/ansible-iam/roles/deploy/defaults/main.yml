@@ -4,6 +4,9 @@
 openbao_url: "http://vault.maas:8200"
 openbao_token: ""
 openbao_jwt_role: "github-actions"
+# Mount do auth JWT. Parametrizado para permitir testar a cadeia contra um mount
+# descartavel (ex.: jwt-test) sem tocar no mount real.
+openbao_jwt_mount: "jwt"
 
 # Usuario/banco tem default porque nao sao segredo.
 # Senha NAO tem default de proposito: se o OpenBao nao responder, o playbook falha.
