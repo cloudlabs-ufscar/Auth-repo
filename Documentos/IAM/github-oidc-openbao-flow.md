@@ -276,14 +276,17 @@ Estado verificado em **2026-11-05** no líder:
 | **GitHub Actions JWT** | Emissor de identidade | OIDC Claims (`aud`, `repository`, `actor`) | Curta, definida pelo GitHub |
 | **OpenBao Client Token** | Leitura exclusiva de `secret/data/iam/*` | `iam-reader` | 15 minutos |
 | **Egress Proxy (Tinyproxy)** | Somente saída HTTP/HTTPS para JWKS | Whitelist de domínio | Permanente |
-| **Chave SSH do runner → nimbus** | Shell no bastion (não lê o cofre) | `secrets.KEY` no GitHub | **Estática** — rotacionar manualmente |
+| **Chave SSH do runner → nimbus** | **Forced command**: só executa `/usr/local/bin/deploy-iam.sh` (sem shell, sem túnel) | `secrets.KEY` + `command=` no `authorized_keys` do `iam` | **Estática** — rotacionar manualmente |
 | **Tokens de OpenBao em disco (CI)** | — | **Eliminados do caminho do CI** | N/A |
 
 ### O que ainda é estático (e por quê)
 
 - **Chave SSH do runner** (`secrets.KEY`): o GitHub precisa de *alguma* credencial para entrar no
-  nimbus. Ela não dá acesso ao OpenBao — o token do cofre só nasce do JWT. Substituir por
-  outro mecanismo (ex.: runner self-hosted) é uma decisão separada.
+  nimbus. Ela não dá acesso ao OpenBao — o token do cofre só nasce do JWT. Desde 2026-11-06 ela
+  está presa a um **forced command**: não abre shell, não faz `scp`, não faz túnel, e **exige** o
+  JWT do GitHub para fazer qualquer coisa (detalhes e reversão em
+  [`cicd-and-deployment.md` §6.3](cicd-and-deployment.md#63-chave-ssh-do-runner-forced-command-2026-11-06)).
+  Eliminá-la de vez exige runner self-hosted — decisão separada.
 - **~~AppRole `idp-deploy`~~ — revogado em 2026-11-06.** A role foi apagada
   (`bao delete auth/approle/role/idp-deploy`) e o arquivo `/opt/iam/.openbao-deploy-approle`
   destruído, depois que o primeiro deploy OIDC passou. As credenciais antigas agora respondem

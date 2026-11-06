@@ -171,8 +171,8 @@ do caminho da pipeline:
 5. Sem JWT e sem `-e openbao_token`, o playbook **falha antes de ler qualquer segredo**. Não existe fallback automático para AppRole.
 
 > **O que continua estático:** a chave SSH do runner para o nimbus (`secrets.KEY`). Ela autentica
-> o transporte, não o OpenBao. Detalhes e o estado de implementação (2026-11-05) em
-> [`github-oidc-openbao-flow.md`](github-oidc-openbao-flow.md).
+> o transporte, não o OpenBao — e é **limitada por forced command** desde 2026-11-06 (§6.3).
+> Detalhes e o estado de implementação em [`github-oidc-openbao-flow.md`](github-oidc-openbao-flow.md).
 
 ### 6.2 Topologias de Deploy: Bastion Nimbus vs. Deploy Direto no `idp.maas`
 - **Opção A (Via Bastion Nimbus - Implementação Atual):**
@@ -183,6 +183,85 @@ do caminho da pipeline:
   - O GitHub Actions conecta diretamente na porta 22 do `idp.maas`.
   - O `idp.maas` executa seu próprio deploy local e fala com o OpenBao exclusivamente pela API HTTP (`http://vault.maas:8200`).
   - *Vantagem de Segurança:* Desacoplamento e redução do raio de explosão (*blast radius*). A máquina do `idp.maas` **não tem chaves SSH para o servidor do cofre OpenBao**, garantindo que nenhum comprometimento no IAM ou na pipeline possa conceder acesso administrativo aos nós do cofre.
+
+### 6.3 Chave SSH do runner: `forced command` (2026-11-06)
+
+**Problema.** Depois do OIDC, `secrets.KEY` é a **única credencial estática** no caminho do CI.
+Uma chave SSH comum no usuário `iam` do nimbus vale muito mais do que "rodar o deploy": dá shell
+interativo, `scp`, túnel de portas (`-L`/`-D`) e, com isso, acesso a tudo que o nimbus alcança —
+os clusters OpenStack, os nós do Incus e a rede `.maas` inteira. Chave vazada = pé dentro do
+datacenter.
+
+**Solução.** `command=` no `authorized_keys` transforma a chave em uma **capacidade de uso
+único**: ela não abre shell, só executa um script fixo.
+
+```text
+command="/usr/local/bin/deploy-iam.sh",no-agent-forwarding,no-port-forwarding,no-pty,no-user-rc,no-X11-forwarding ssh-ed25519 AAAA... runner
+```
+
+**Como funciona.** O `sshd` ignora o que o cliente pediu para executar e roda o wrapper; o comando
+original cai em `SSH_ORIGINAL_COMMAND` e **não é executado**. O `appleboy/ssh-action` envia as
+variáveis como `export NOME='valor'` antes do script, então o wrapper:
+
+1. extrai **somente** `ACTIONS_ID_TOKEN`, `DEPLOY_REF`, `KEYCLOAK_GITHUB_CLIENT_ID` e
+   `KEYCLOAK_GITHUB_CLIENT_SECRET` do `SSH_ORIGINAL_COMMAND`, por regex — **sem `eval`** e sem
+   executar nada do que veio junto (um `rm -rf` no mesmo comando é ignorado);
+2. **exige** um `ACTIONS_ID_TOKEN` com formato de JWT. Sem ele, sai com erro **antes** de clonar,
+   resetar ou chamar o Ansible;
+3. valida a ref com `^[A-Za-z0-9._/-]+$` (nada de `--upload-pack=...` ou opções injetadas),
+   confere que o `origin` é exatamente `cloudlabs-ufscar/Auth-repo.git`, faz
+   `git fetch origin "$REF"` + `git reset --hard "origin/$REF"`;
+4. roda `ansible-playbook -i inventory/inventory tasks/first-deploy.yml` com os extra-vars do
+   Keycloak;
+5. registra início/fim/recusa em `logger -t iam-deploy` → `journalctl -t iam-deploy`.
+
+O corpo do script no `.github/workflows/deploy.yml` (§3) continua lá como **fallback**, mas com o
+forced command ativo ele é ignorado: só o prefixo de `export` importa.
+
+**O que isso garante**
+
+- Chave roubada **sozinha não faz nada**: não há shell, não há `scp`, não há túnel, não há leitura
+  de `~/repos` nem do cofre.
+- Para disparar um deploy, o atacante precisa **também** de um JWT válido do GitHub — que só é
+  emitido para `cloudlabs-ufscar/*`, vale 15 min, sai com a policy `iam-reader` e fica no audit
+  log do OpenBao com `meta.role=github-actions`.
+- Toda tentativa (aceita ou recusada) deixa rastro no journal do nimbus.
+
+**O que isso não resolve**
+
+- A chave continua existindo; ela só deixa de ser uma chave de propósito geral.
+- Se o **workflow ou o repositório** for comprometido, o atacante obtém um JWT legítimo — o forced
+  command não ajuda nisso. A defesa ali é revisão de PR/proteção de branch, não o SSH.
+- Root no nimbus continua sendo root (o wrapper roda como `iam`).
+- Eliminar a credencial estática de vez exige **runner self-hosted** (§6.2, opção B na prática),
+  que inverte o sentido da conexão. Fica como evolução, não como pré-requisito.
+
+**Instalar (root no nimbus)**
+
+```bash
+sudo bash /tmp/opencode/install-forced-command.sh
+# instala /usr/local/bin/deploy-iam.sh (root:root 0755), detecta o ansible-playbook
+# do usuário iam, prefixa as chaves com command=..., faz backup
+# authorized_keys.bak-<timestamp> e imprime como reverter
+```
+
+**Verificar**
+
+```bash
+# a chave não abre shell (esperado: RECUSADO)
+ssh -i <chave-do-runner> iam@nimbus 'id'
+journalctl -t iam-deploy -n 20 --no-pager
+# prova real: push de doc na main → run verde, deploy executado pelo wrapper
+```
+
+**Reverter** (volta ao shell comum):
+
+```bash
+sudo cp -a /home/iam/.ssh/authorized_keys.bak-<timestamp> /home/iam/.ssh/authorized_keys
+```
+
+> A chave é do usuário `iam`, dedicado ao CI. Se um dia alguém precisar de shell ali, o caminho
+> é uma **chave separada** sem `command=` (e idealmente com `from=`), não afrouxar esta.
 
 ## 7. Atualização de Dependências (Renovate)
 
